@@ -1,6 +1,6 @@
-GenerateSets <- function (classes, instancesL, instancesT, features, rangeMin, rangeMax, sigma){
-  learningSet = array(,dim = c(instancesL*classes, features))
-  testingSet = array(,dim = c(instancesT*classes, features))
+GenerateSets <- function (classes, instancesL, instancesT, REJinstances, features, rangeMin, rangeMax, sigma){
+  learningSet = array(,dim = c(instancesL*classes+REJinstances, features))
+  testingSet = array(,dim = c(instancesT*classes+REJinstances, features))
   for (c in 1:classes){
     for(f in 1:features){
       m = mean(runif(instancesL,min=rangeMin,max=rangeMax)) 
@@ -10,6 +10,16 @@ GenerateSets <- function (classes, instancesL, instancesT, features, rangeMin, r
   }
   learningSet = learningSet + rnorm(n=instancesL*classes*features,mean =0, sd = sigma)
   testingSet = testingSet + rnorm(n=instancesT*classes*features,mean =0, sd = sigma)
+  #for(w in 1:REJinstances){
+  data = runif(REJinstances*features, rangeMin, rangeMax)
+  x = instancesL*classes+1
+  y = instancesL*classes+REJinstances
+  learningSet[x:y,] = data
+  data = runif(REJinstances*features, rangeMin, rangeMax)
+  x = instancesT*classes+1
+  y = instancesT*classes+REJinstances
+  testingSet[x:y,] = data
+  #}
   list("learn" = learningSet, "test"=testingSet);
 }
 
@@ -25,7 +35,7 @@ Normalize <- function(sets){
 }
 
 CreateTT <- function(states, symbols, nondeterminism = 1){
-  TT = array(data = sample(x = 1:states, size= states*symbols*nondeterminism, replace = TRUE),
+  TT = array(data = sample(x = 0:states, size= states*symbols*nondeterminism, replace = TRUE),
              dim = c(states, symbols, nondeterminism))
   TT
 }
@@ -36,9 +46,7 @@ ComputeNextState <- function(TT,inputSymbol,state){
     rej = TRUE
   else
     rej = FALSE
-  #q = state
-  #t =TT
-  #cat("\t q = ",q," in = ",inputSymbol);
+  #cat("\t q = ",state," in = ",inputSymbol);
   states = TT[state, inputSymbol, ]  
   
   if(rej)
@@ -64,10 +72,14 @@ ClassifyWord <- function(TT,word){
 
 CalculateError <- function(TT,words,instances){
   error = 0;
-  for(i in 1:(dim(words)[1])){
+  wordsNo = dim(words)[1]
+  classesNo = dim(TT)[1]
+  for(i in 1:(wordsNo)){
     #cat("#",i," word - ", words[i,], " \n");
-    possibleClassification=(ClassifyWord(TT,words[i,]))
-    b=(((i-1)%/%instances)+1)  
+    possibleClassification = (ClassifyWord(TT,words[i,]))
+    b = (((i-1)%/%instances)+1)  
+    if (classesNo*instances < i)
+      b = 0
     #cat("word#",i,"detected=",a,"class=",b,"\n");
     if ( b %in% possibleClassification == FALSE){
       error=error+1;
@@ -111,7 +123,7 @@ CreateAutomata <- function(classes, features,
                      words = sets$learn, instances = learningInstancesPerClass, 
                      states = classes, symbols = numberOfSymbols, nondeterminism = nondeterminism,
                      lower = rep(1,length(TT)), upper = rep(classes,length(TT)),  
-                     control = list(parallel = 'parallelWin', par.nnodes = 8, REPORT = 10,maxit=450))
+                     control = list(parallel = 'parallelWin', par.nnodes = 8, REPORT = 10,maxit=400))
 
 # PPSO VERSION  
 #   results = optim_ppso_robust(parameter_bounds = matrix(c(0,1),c(1,2)),max_number_of_iterations = 5,
@@ -134,12 +146,12 @@ CreateAutomata <- function(classes, features,
 }
 
 RunTest1 <- function(classes = 15, features = 10, 
-                     learningInstancesPerClass = 10, testingInstancesPerClass = 5,
+                     learningInstancesPerClass = 10, testingInstancesPerClass = 5, rejectingInstances = 27,
                      rangeMin = 5, rangeMax = 10, sigma = 0.2, numberOfSymbols = 5, nondeterminism = 1)
 {
   library("hydroPSO", lib.loc="~/R/win-library/3.1");
   
-  sets = GenerateSets(classes, learningInstancesPerClass, testingInstancesPerClass, features, rangeMin, rangeMax, sigma)
+  sets = GenerateSets(classes, learningInstancesPerClass, testingInstancesPerClass, rejectingInstances, features, rangeMin, rangeMax, sigma)
     
   CreateAutomata  (classes, features, 
                    learningInstancesPerClass, testingInstancesPerClass, 
