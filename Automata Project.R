@@ -1,3 +1,4 @@
+### SETS FUNCTIONS ###
 GenerateSets <- function (classes, instancesL, instancesT, REJinstances, features, rangeMin, rangeMax, sigma){
   learningSet = array(,dim = c(instancesL*classes+REJinstances, features))
   testingSet = array(,dim = c(instancesT*classes+REJinstances, features))
@@ -34,96 +35,148 @@ Normalize <- function(sets){
   sets
 }
 
+ChangeValuesToSymbols <- function(x,symbols){
+  newVals = ceiling(x/(1/symbols))
+  newVals[x == 0] = 1;
+  newVals
+}
+### AUTOMATA FUNCTIONS ###
 CreateTT <- function(states, symbols, nondeterminism = 1){
-  TT = array(data = sample(x = 0:states, size= states*symbols*nondeterminism, replace = TRUE),
-             dim = c(states, symbols, nondeterminism))
+  TT = array(data = runif(n = states*states*symbols, min = 0.0, max = 1.0),
+             dim = c(states, states, symbols))
   TT
 }
 
 ComputeNextState <- function(TT,inputSymbol,state){
-  #What if (state == 0)
-  if(0 %in% state)
-    rej = TRUE
-  else
-    rej = FALSE
-  #cat("\t q = ",state," in = ",inputSymbol);
-  states = TT[state, inputSymbol, ]  
+  newState = vector(mode="numeric",length=dim(TT)[1])
+  for(i in 1:length(newState)){
+    newState[i] = UseTriangleNorm(TT[i,,inputSymbol],state)
+  }
+  newState
   
-  if(rej)
-    states = sort(unique(c(states,0)))
-  else
-    states = sort(unique(as.vector(states)))
+  #if(rej)
+  #  states = sort(unique(c(states,0)))
+  #else
+  #  states = sort(unique(as.vector(states)))
+}
+
+UseTriangleNorm <- function(row, column){
+  result = vector(mode="numeric",length = length(column))
+  for(i in 1:length(column)){
+    result[i] = triMin(c(row[i], column[i]))
+  }
+  triMax(result)
+}
+
+triMax <- function(values){
+  #max(values)
+  values = atanh(values);
+  value = tanh(sum(values))
+  is.infinite(value)
+    value= 0
+  value
+}
+
+triMin <- function(values){
+  #min(values)
+  values = atanh(1-values)
+  value = 1 - tanh(sum(values))
+  is.infinite(value)
+    value= 1
+  value
 }
 
 debug <- function(){
   1
 }
 
-ClassifyWord <- function(TT,word){
-  state = 1;
-  
-  for(i in 1:length(word)){
-    input = word[i]
-    state = ComputeNextState(TT,input,state);
-    #cat("\t states: (",state,") \n");
-  }
-  sort(unique(state))
+CalculateSymbolsVector <- function(value,numberOfSymbols){
+  result = vector(mode = "numeric", numberOfSymbols)
+  sd = rep(1/numberOfSymbols, numberOfSymbols)
+  m = 0:(numberOfSymbols-1)*(sd)+(sd/2);
+  v = rep(value, numberOfSymbols)
+  tail = v<m  
+  result[tail] = pnorm(v[tail],m[tail],sd[tail],TRUE)
+  result[!tail] = pnorm(v[!tail],m[!tail],sd[!tail],FALSE)
+  round(result,4)
 }
 
-CalculateError <- function(TT,words,instances){
+ClassifyWord <- function(TT,word){  
+  states = dim(TT)[1]
+  symbols = dim(TT)[3]
+  state = vector(mode = "numeric",states);
+  state[1] = 0.99
+  Ytab = array(dim=c(states,symbols))
+  for(i in 1:length(word)){
+    symV = CalculateSymbolsVector(word[i],states)
+    for(symbol in 1:symbols){
+      Ytab[,symbol] = ComputeNextState(TT,symbol,state);
+    }
+    for(symbol in 1:symbols){
+      for(place in 1:states)
+        Ytab[place,symbol]=triMin(c(symV[place],Ytab[place,symbol]))
+    }
+    for(place in 1:states)
+      state[place] = triMax(Ytab[place,])
+    #cat("\t states: (",state,") \n");
+  }
+  state
+}
+
+CalculateError <- function(TT,words,instances,minChance){
   error = 0;
   wordsNo = dim(words)[1]
   classesNo = dim(TT)[1]
   for(i in 1:(wordsNo)){
     #cat("#",i," word - ", words[i,], " \n");
     possibleClassification = (ClassifyWord(TT,words[i,]))
-    b = (((i-1)%/%instances)+1)  
-    if (classesNo*instances < i)
-      b = 0
-    #cat("word#",i,"detected=",a,"class=",b,"\n");
-    if ( b %in% possibleClassification == FALSE){
-      error=error+1;
+    
+    #If te word should be rejected
+    if (classesNo*instances < i){
+        if(sum(possibleClassification<minChance) != length(possibleClassification))
+          error=error+1      
+        expectedClass = 0
     }
+    #If the word should be accepted in specific class  
+    else {
+      expectedClass = (((i-1)%/%instances)+1)  
+      if (possibleClassification[expectedClass] < minChance)
+        error=error+1;
+    }
+    #cat("word#",i,"detected=",possibleClassification,"class=",expectedClass,"\n");
   }
   error
 }
 
-CalculateErrorFromVector <- function(vTT,words,instances,states,symbols,nondeterminism){
-  #cat("Calculating Error... ");
-  TT = HandlePSOVector(vTT,states,symbols,nondeterminism)
-  CalculateError(TT,words,instances)
+CalculateErrorFromVector <- function(vTT,words,instances,states,symbols,minChance){
+  TT = HandlePSOVector(vTT,states,symbols)
+  CalculateError(TT,words,instances,minChance)
 }
 
-HandlePSOVector <- function(vTT,states,symbols,nondeterminism){
-  TT = array(vTT,dim = c(states,symbols,nondeterminism))
-  round(TT)
+HandlePSOVector <- function(vTT,states,symbols){
+  array(vTT,dim = c(states,states,symbols))
 }
 
-ChangeValuesToSymbols <- function(x,symbols){
-  newVals = ceiling(x/(1/symbols))
-  newVals[x == 0] = 1;
-  newVals
-}
 
-CreateAutomata <- function(classes, features, 
+CreateAutomata <- function(sets, classes, features, numberOfSymbols,
                            learningInstancesPerClass, testingInstancesPerClass,
-                           rangeMin, rangeMax, sigma, numberOfSymbols,
-                           sets, nondeterminism){
+                           rangeMin, rangeMax, minChance, iterations){
   
   #cat("",file="outfile.txt",append=FALSE);
   
   sets = Normalize(sets)
-  sets$learn = ChangeValuesToSymbols(sets$learn, numberOfSymbols)
-  sets$test = ChangeValuesToSymbols(sets$test, numberOfSymbols)
+  #sets$learn = ChangeValuesToSymbols(sets$learn, numberOfSymbols)
+  #sets$test = ChangeValuesToSymbols(sets$test, numberOfSymbols)
   
-  TT = CreateTT(classes, numberOfSymbols, nondeterminism);
+  TT = CreateTT(classes, numberOfSymbols);
 
 # HYDRO PSO VERSION  
+  library("hydroPSO", lib.loc="~/R/win-library/3.1");
   results = hydroPSO(par = matrix(TT,nrow=1),fn = CalculateErrorFromVector,
                      words = sets$learn, instances = learningInstancesPerClass, 
-                     states = classes, symbols = numberOfSymbols, nondeterminism = nondeterminism,
-                     lower = rep(1,length(TT)), upper = rep(classes,length(TT)),  
-                     control = list(parallel = 'parallelWin', par.nnodes = 8, REPORT = 10,maxit=400))
+                     states = classes, symbols = numberOfSymbols, minChance = minChance,
+                     lower = rep(0,length(TT)), upper = rep(1,length(TT)),  
+                     control = list(parallel = 'parallelWin', par.nnodes = 8, REPORT = 10, maxit=iterations))
 
 # PPSO VERSION  
 #   results = optim_ppso_robust(parameter_bounds = matrix(c(0,1),c(1,2)),max_number_of_iterations = 5,
@@ -137,25 +190,40 @@ CreateAutomata <- function(classes, features,
 #                     states = classes, symbols = numberOfSymbols, nondeterminism = nondeterminism,
 #                     lower = 1, upper = classes,
 #                     control = list(trace = 1, REPORT = 10, trace.stats =TRUE));
-  TT = HandlePSOVector(results$par,classes,numberOfSymbols,nondeterminism);
+  TT = HandlePSOVector(results$par,classes,numberOfSymbols);
   cat("Smallest Error", results$value,"\n");
-  effi = CalculateError(TT, sets$test, testingInstancesPerClass);
+  effi = CalculateError(TT, sets$test, testingInstancesPerClass,minChance);
   cat("Efficiency:",1-(effi/dim(sets$test)[1]),"\n");
   results
-  
 }
+
+### TESTS ###
+RunTest0 <- function(classes = 5, 
+                     features = 10, 
+                     numberOfSymbols = 4,
+                     learningInstancesPerClass = 10, testingInstancesPerClass = 5, 
+                     rejectingInstances = 17,
+                     rangeMin = 5, rangeMax = 10, 
+                     sigma = 0.2,
+                     minChance = 0.65,
+                     iterations = 100){
+  
+  sets = GenerateSets(classes, learningInstancesPerClass, testingInstancesPerClass, rejectingInstances, features, rangeMin, rangeMax, sigma)
+  CreateAutomata  (sets, classes, features, numberOfSymbols,
+                   learningInstancesPerClass, testingInstancesPerClass, 
+                   rangeMin, rangeMax, minChance, iterations)
+
+}
+
 
 RunTest1 <- function(classes = 15, features = 10, 
                      learningInstancesPerClass = 10, testingInstancesPerClass = 5, rejectingInstances = 27,
-                     rangeMin = 5, rangeMax = 10, sigma = 0.2, numberOfSymbols = 5, nondeterminism = 1)
+                     rangeMin = 5, rangeMax = 10, sigma = 0.2, numberOfSymbols = 5, minChance = 0.85, iterations = 500)
 {
-  library("hydroPSO", lib.loc="~/R/win-library/3.1");
-  
   sets = GenerateSets(classes, learningInstancesPerClass, testingInstancesPerClass, rejectingInstances, features, rangeMin, rangeMax, sigma)
     
-  CreateAutomata  (classes, features, 
+  CreateAutomata(sets, classes, features, numberOfSymbols,
                    learningInstancesPerClass, testingInstancesPerClass, 
-                   rangeMin, rangeMax, sigma, numberOfSymbols,
-                   sets, nondeterminism)
+                   rangeMin, rangeMax, minChance, iterations)
   
 }
