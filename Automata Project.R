@@ -44,7 +44,7 @@ ChangeValuesToSymbols <- function(x,symbols){
 CreateTT <- function(states, symbols, nondeterminism = 1){
   TT = array(data = runif(n = states*states*symbols, min = 0.0, max = 1.0),
              dim = c(states, states, symbols))
-  TT
+  round(TT,digits = 3)
 }
 
 ComputeNextState <- function(TT,inputSymbol,state){
@@ -72,7 +72,7 @@ triMax <- function(values){
   #max(values)
   values = atanh(values);
   value = tanh(sum(values))
-  is.infinite(value)
+  if(is.infinite(value))
     value= 0
   value
 }
@@ -81,7 +81,7 @@ triMin <- function(values){
   #min(values)
   values = atanh(1-values)
   value = 1 - tanh(sum(values))
-  is.infinite(value)
+  if(is.infinite(value))
     value= 1
   value
 }
@@ -104,8 +104,7 @@ CalculateSymbolsVector <- function(value,numberOfSymbols){
 ClassifyWord <- function(TT,word){  
   states = dim(TT)[1]
   symbols = dim(TT)[3]
-  state = vector(mode = "numeric",states);
-  state[1] = 0.99
+  state = rep(0.3,states);
   Ytab = array(dim=c(states,symbols))
   for(i in 1:length(word)){
     symV = CalculateSymbolsVector(word[i],states)
@@ -131,17 +130,17 @@ CalculateError <- function(TT,words,instances,minChance){
     #cat("#",i," word - ", words[i,], " \n");
     possibleClassification = (ClassifyWord(TT,words[i,]))
     
-    #If te word should be rejected
+    #If the word should be rejected
     if (classesNo*instances < i){
         if(sum(possibleClassification<minChance) != length(possibleClassification))
-          error=error+1      
+          error=error+sum(possibleClassification[possibleClassification>minChance]-minChance)
         expectedClass = 0
     }
     #If the word should be accepted in specific class  
     else {
       expectedClass = (((i-1)%/%instances)+1)  
       if (possibleClassification[expectedClass] < minChance)
-        error=error+1;
+        error=error+(minChance - possibleClassification[expectedClass]);
     }
     #cat("word#",i,"detected=",possibleClassification,"class=",expectedClass,"\n");
   }
@@ -190,10 +189,10 @@ CreateAutomata <- function(sets, classes, features, numberOfSymbols,
 #                     states = classes, symbols = numberOfSymbols, nondeterminism = nondeterminism,
 #                     lower = 1, upper = classes,
 #                     control = list(trace = 1, REPORT = 10, trace.stats =TRUE));
-  TT = HandlePSOVector(results$par,classes,numberOfSymbols);
-  cat("Smallest Error", results$value,"\n");
-  effi = CalculateError(TT, sets$test, testingInstancesPerClass,minChance);
-  cat("Efficiency:",1-(effi/dim(sets$test)[1]),"\n");
+#   TT = HandlePSOVector(results$par,classes,numberOfSymbols);
+#   cat("Smallest Error", results$value,"\n");
+#   effi = CalculateError(TT, sets$test, testingInstancesPerClass,minChance);
+#   cat("Efficiency:",1-(effi/dim(sets$test)[1]),"\n");
   results
 }
 
