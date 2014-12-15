@@ -1,10 +1,14 @@
 ### SETS FUNCTIONS ###
 GenerateSets <- function (noClasses, noRepetitionsInClass, percTest, percForeign, features, rangeMin, rangeMax, sigma){
   noLearnWords = noClasses * noRepetitionsInClass
-  noTestWords = percTest/100 * noClasses * noRepetitionsInClass
-  noTrainWords = noLearnWords - noTestWords
-  noForeignLearn =  percForeign/100 * noTrainWords
-  noForeignTest = percForeign/100 * noTestWords
+  noTestWords = (percTest * noClasses * noRepetitionsInClass) %/% 100
+  noTrainWords = noLearnWords - noTestWords 
+  noForeignLearn =  (percForeign * noTrainWords) %/% 100
+  if(noForeignLearn < 0)
+    noForeignLearn = 0
+  noForeignTest = (percForeign * noTestWords) %/% 100
+  if(noForeignTest < 0)
+    noForeignTest = 0
   noForeignWords = noForeignLearn + noForeignTest
   
   learningSet = array(,dim = c(noLearnWords, features+1))
@@ -70,7 +74,7 @@ CreateTT <- function(states, symbols, nondeterminism = 1, rejection = TRUE){
       minStates = 0
     else
       minStates = 1
-    TT = array(data = 0,dim = c(states, states, symbols))
+    TT = array(data = 0, dim = c(states, states, symbols))
     for(symbol in 1:symbols){
       for(state in 1:states){
         TT[sample(1:states,sample(minStates:nondeterminism)),state,symbol] = 1;
@@ -82,7 +86,7 @@ CreateTT <- function(states, symbols, nondeterminism = 1, rejection = TRUE){
 }
 
 ComputeNextState <- function(TT,inputSymbol,state){
-  newState = vector(mode="numeric",length=dim(TT)[1])
+  newState = vector(mode="numeric", length = dim(TT)[1])
   for(i in 1:length(newState)){
     newState[i] = UseTriangleNorm(TT[i,,inputSymbol],state)
   }
@@ -138,7 +142,7 @@ ClassifyWord <- function(TT,word, discrete){
     state = rep(0,states)
     state[1] = 1
     for(i in 1:length(word)){
-      state = CalculateSymbolsVector(word[i],states)
+      state = ComputeNextState(TT,word[i],state)
     }    
   }
   else{
@@ -161,14 +165,14 @@ ClassifyWord <- function(TT,word, discrete){
   state
 }
 
-CalculateError <- function(TT,words,instances,minChance){
+CalculateError <- function(TT,words,minChance,discrete){
   error = 0;
   wordsNo = dim(words)[1]
   noFeatures = dim(words)[2]-1
   classesNo = dim(TT)[1]
   for(i in 1:(wordsNo)){
     #cat("#",i," word - ", words[i,], " \n");
-    possibleClassification = (ClassifyWord(TT,words[i,2:noFeatures+1]))
+    possibleClassification = ClassifyWord(TT,words[i,2:noFeatures+1],discrete)
     expectedClass = words[i,1]
     #If the word should be rejected
     if (expectedClass==0){
@@ -185,15 +189,15 @@ CalculateError <- function(TT,words,instances,minChance){
   error
 }
 
-CalculateErrorFromVector <- function(vTT,words,instances,states,symbols,minChance){
-  TT = HandlePSOVector(vTT,states,symbols)
-  CalculateError(TT,words,instances,minChance)
+CalculateErrorFromVector <- function(vTT,words,states,symbols,minChance,rejecting,boundNonDeterminism, discrete){
+  TT = HandlePSOVector(vTT,states,symbols,rejecting,boundNonDeterminism)
+  CalculateError(TT,words,minChance,discrete)
 }
 
-HandlePSOVector <- function(vTT,states,symbols,rejecting,nondeterminism){
+HandlePSOVector <- function(vTT,states,symbols,rejecting,boundNonDeterminism){
   TT = array(vTT,dim = c(states,states,symbols))
-  if(is.infinite(nondeterminism) == FALSE)
-    ChangeValuesToZerosAndOnes(TT,rejecting,nondeterminism)
+  if(is.infinite(boundNonDeterminism) == FALSE)
+    ChangeValuesToZerosAndOnes(TT,rejecting,boundNonDeterminism)
   else
     TT
 }
@@ -287,3 +291,173 @@ RunTest1 <- function(classes = 15, features = 10,
                    rangeMin, rangeMax, minChance, iterations)
   
 }
+
+AC2014 <- function(phase,
+                   inputType = "",
+                   pathTrain = "",
+                   pathTest = "",
+                   pathForeignTrain = "",
+                   pathForeignTest = "",
+                   pathOutputClass = "",
+                   pathOutputErr = "",
+                   noClasses = 0,
+                   noFeatures = 0,
+                   noRepetitionsInClass = 0,
+                   minRand = -Inf,
+                   maxRand = Inf,
+                   distortion = 0,
+                   percTestSize = -1,
+                   percForeignSize = -1,
+                   discretization = 0,
+                   boundNonDeterminism = 0,
+                   parallel = "YES",
+                   PSOtrace = 0,
+                   PSOfnscale = 1,
+                   PSOmaxit = 1000,
+                   PSOmaxf = Inf,
+                   PSOabstol = -Inf,
+                   PSOreltol = 0,
+                   PSOREPORT = 10,
+                   PSOtrace.stats = FALSE,
+                   PSOs,
+                   PSOk = 3,
+                   PSOp,
+                   PSOw = 1/(2*log(2)),
+                   PSOc.p = 0.5+log(2),
+                   PSOc.g = 0.5+log(2),
+                   PSOd,
+                   PSOv.max = NA,
+                   PSOrand.order = TRUE,
+                   PSOmax.restart = Inf,
+                   PSOmaxit.stagnate = Inf) 
+{
+  if(require(hydroPSO) == FALSE)
+    install.packages("hydroPSO", dependencies=TRUE)
+  
+  #Validate phase
+  if(!(phase %in% c("a1","a2","a3","a4","a5","a6")))
+    stop("Phase must be one of {a1,a2,a3,a4,a5,a6}!")
+  #Validate inputType
+  if(inputType == "")
+    if(pathTrain == "")
+      inputType = "gen"
+    else
+      inputType = "red"
+  #Validate File parameters
+  if(inputType == "red")
+  {
+    if(noClasses != 0 || noFeatures != 0 || noRepetitionsInClass != 0 || minRand != -Inf || maxRand!= Inf || distortion != 0)
+      stop("One of the parameters cannot be declared when inputType is red. Please read user's manual before using the program.")
+    if(pathTrain == "")
+      stop("The path to input file must be given in parameter pathTrain!")
+    if(pathTest == "" && percTestSize == -1)
+      stop("The path to the test data or percentage of test data must be declared!")
+    if(phase %in% c("a2","a4","a6"))
+    {
+      if(pathForeignTrain == "" && perccForeignSize == -1)
+        stop("The path to the foreign data or percentage of foreign data must be declared!")
+      if(pathForeignTest == "" && percForeignSize == -1)
+        stop("The path to the foreign data or percentage of foreign data must be declared!")    
+    }
+  }
+  else
+  {
+    if(pathTrain != "" || pathTest != "" || pathForeignTrain != "" || pathForeignTest != "")
+      stop("One of the parameters cannot be declared when inputType is gen. Please read user's manual before using the program.")
+    if(noClasses <= 1 || is.integer(noClasses))
+      stop("noClasses must be integer bigger than 1!")
+    if(noFeatures <= 0 || is.integer(noFeatures))
+      stop("noFeatures must be integer bigger than 0!")
+    if(noRepetitionsInClass <= 0 || is.integer(noRepetitionsInClass))
+      stop("noRepetitionsInClass must be integer bigger than 0!")
+    if(minRand == -Inf || maxRand == Inf)
+      stop("Both minRand and maxRand mus be explicitly declared real numbers!")
+    if(distortion <= 0)
+      stop("distortion must be real number bigger than 0!")
+    if(discretization <= 0)
+      stop("discretization must be real number bigger than 0!")
+    if(percTestSize == -1)
+      stop("The percentage of test data must be declared!")
+    
+    sets = GenerateSets(noClasses = noClasses, noRepetitionsInClass = noRepetitionsInClass, 
+                        percTest = percTestSize, percForeignSize, features = noFeatures, rangeMin = minRand, rangeMax = maxRand, sigma = distortion)
+  }
+  
+  
+  sets = Normalize(sets)
+  if(phase %in% DiscretePhases)
+  {
+    sets$learn[,2:noFeatures+1] = ChangeValuesToSymbols(sets$learn[,2:noFeatures+1], discretization)
+    sets$test[,2:noFeatures+1] = ChangeValuesToSymbols(sets$test[,2:noFeatures+1], discretization)
+  }
+  
+  if(phase %in% NonRejectingPhases)
+    rejection = FALSE
+  else 
+    rejection = TRUE
+  
+  if(phase %in% DeterministicPhases)
+  {
+    minChance = 0.5 
+    boundNonDeterminism = 1
+    discrete = TRUE
+  }
+  else if(phase %in% NonDeterministicPhases)
+  {
+    minChance = 0.5
+     discrete = TRUE
+  }
+  else{
+    minChance = 0.75
+    boundNonDeterminism = Inf
+    discrete = FALSE
+  }
+    
+  if(missing(PSOs))
+    PSOs =  floor(10+2*sqrt(length(TT)))
+  if(missing(PSOd))
+    PSOd = sqrt(length(TT))
+  if(missing(PSOp))
+    PSOp = 1-(1-1/PSOs)^PSOk
+  
+  control = list(#"parallel" = "parallelWin",
+                 #"par.nnodes" = 4,
+                 "trace" = PSOtrace,
+                 "fnscale" = PSOfnscale,
+                 "maxit" = PSOmaxit,
+                 "maxf" = PSOmaxf,
+                 "abstol" = PSOabstol,
+                 "reltol" = PSOreltol,
+                 "REPORT" = PSOREPORT,
+                 "trace.stats" = PSOtrace.stats,
+                 "s" = PSOs,
+                 "k" = PSOk,
+                 "p" = PSOp,
+                 "w" = PSOw,
+                 "c.p" = PSOc.p,
+                 "c.g" = PSOc.g,
+                 "d" = PSOd,
+                 "v.max" = PSOv.max,
+                 "rand.order" = PSOrand.order,
+                 "max.restart" = PSOmax.restart,
+                 "maxit.stagnate" = PSOmaxit.stagnate)
+    
+  TT = CreateTT(noClasses, discretization, boundNonDeterminism, rejection)
+  results = psoptim(par = matrix(TT,nrow=1), fn = CalculateErrorFromVector,
+                     words = sets$learn, states = noClasses, symbols = discretization,
+                    rejecting = rejection, discrete = discrete, boundNonDeterminism = boundNonDeterminism,
+                     minChance = minChance, lower = rep(0,length(TT)), upper = rep(1,length(TT)),  
+                     control = control)
+  results
+}
+
+
+
+
+
+NonRejectingPhases <- c("a1","a3","a5")
+RejectingPhases <- c("a2","a4","a6")
+DeterministicPhases <- c("a1","a2")
+NonDeterministicPhases <- c("a3","a4")
+DiscretePhases <- c("a1","a2","a3","a4")
+FuzzyPhases <- c("a5","a6")
