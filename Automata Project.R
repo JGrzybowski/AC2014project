@@ -292,48 +292,20 @@ RunTest1 <- function(classes = 15, features = 10,
   
 }
 
-AC2014 <- function(phase,
-                   inputType = "",
-                   pathTrain = "",
-                   pathTest = "",
-                   pathForeignTrain = "",
-                   pathForeignTest = "",
-                   pathOutputClass = "",
-                   pathOutputErr = "",
-                   noClasses = 0,
-                   noFeatures = 0,
-                   noRepetitionsInClass = 0,
-                   minRand = -Inf,
-                   maxRand = Inf,
-                   distortion = 0,
-                   percTestSize = -1,
-                   percForeignSize = -1,
-                   discretization = 0,
-                   boundNonDeterminism = 0,
+AC2014 <- function(phase, inputType = "", 
+                   pathTrain = "", pathTest = "", 
+                   pathForeignTrain = "", pathForeignTest = "", 
+                   pathOutputClass = "", pathOutputErr = "",
+                   noClasses = 0, noFeatures = 0, noRepetitionsInClass = 0,
+                   minRand = -Inf, maxRand = Inf, distortion = 0,
+                   percTestSize = -1, percForeignSize = -1,
+                   discretization = 0, boundNonDeterminism = 0,
                    parallel = "YES",
-                   PSOtrace = 0,
-                   PSOfnscale = 1,
-                   PSOmaxit = 1000,
-                   PSOmaxf = Inf,
-                   PSOabstol = -Inf,
-                   PSOreltol = 0,
-                   PSOREPORT = 10,
-                   PSOtrace.stats = FALSE,
-                   PSOs,
-                   PSOk = 3,
-                   PSOp,
-                   PSOw = 1/(2*log(2)),
-                   PSOc.p = 0.5+log(2),
-                   PSOc.g = 0.5+log(2),
-                   PSOd,
-                   PSOv.max = NA,
-                   PSOrand.order = TRUE,
-                   PSOmax.restart = Inf,
-                   PSOmaxit.stagnate = Inf) 
+                   PSOtrace, PSOfnscale, PSOmaxit, PSOmaxf,
+                   PSOabstol, PSOreltol, PSOREPORT, PSOtrace.stats,
+                   PSOs, PSOk, PSOp, PSOw, PSOc.p, PSOc.g, PSOd, PSOv.max, 
+                   PSOrand.order, PSOmax.restart, PSOmaxit.stagnate) 
 {
-  if(require(hydroPSO) == FALSE)
-    install.packages("hydroPSO", dependencies=TRUE)
-  
   #Validate phase
   if(!(phase %in% c("a1","a2","a3","a4","a5","a6")))
     stop("Phase must be one of {a1,a2,a3,a4,a5,a6}!")
@@ -407,53 +379,100 @@ AC2014 <- function(phase,
     minChance = 0.5
      discrete = TRUE
   }
-  else{
+  else
+  {
     minChance = 0.75
     boundNonDeterminism = Inf
     discrete = FALSE
   }
-    
-  if(missing(PSOs))
-    PSOs =  floor(10+2*sqrt(length(TT)))
-  if(missing(PSOd))
-    PSOd = sqrt(length(TT))
-  if(missing(PSOp))
-    PSOp = 1-(1-1/PSOs)^PSOk
-  
-  control = list(#"parallel" = "parallelWin",
-                 #"par.nnodes" = 4,
-                 "trace" = PSOtrace,
-                 "fnscale" = PSOfnscale,
-                 "maxit" = PSOmaxit,
-                 "maxf" = PSOmaxf,
-                 "abstol" = PSOabstol,
-                 "reltol" = PSOreltol,
-                 "REPORT" = PSOREPORT,
-                 "trace.stats" = PSOtrace.stats,
-                 "s" = PSOs,
-                 "k" = PSOk,
-                 "p" = PSOp,
-                 "w" = PSOw,
-                 "c.p" = PSOc.p,
-                 "c.g" = PSOc.g,
-                 "d" = PSOd,
-                 "v.max" = PSOv.max,
-                 "rand.order" = PSOrand.order,
-                 "max.restart" = PSOmax.restart,
-                 "maxit.stagnate" = PSOmaxit.stagnate)
+
+  control = list()
+  #SingleThread Control
+  if(parallel == "NO"){
+    if(!missing(PSOtrace))
+      control$trace = PSOtrace
+    if(!missing(PSOfnscale))
+      control$fnscale = PSOfnscale
+    if(!missing(PSOmaxf))
+      control$maxf = PSOmaxf 
+    if(!missing(PSOtrace.stats))
+        control$trace.stats = PSOtrace.stats
+    if(!missing(PSOs))
+      control$s = PSOs
+    if(!missing(PSOk))
+      control$k = PSOk
+    if(!missing(PSOp))
+      control$p = PSOp
+    if(!missing(PSOw))
+      control$w = PSOw
+    if(!missing(PSOc.p))
+      control$c.p = PSOc.p
+    if(!missing(PSOc.g))
+      control$c.g = PSOc.g
+    if(!missing(PSOd))
+      control$d = PSOd
+    if(!missing(PSOv.max))
+      control$v.max = PSOv.max
+    if(!missing(PSOrand.order))
+      control$rand.order = PSOrand.order
+    if(!missing(PSOmax.restart))
+      control$max.restart = PSOmax.restart
+    if(!missing(PSOmaxit.stagnate))
+      control$maxit.stagnate = PSOmaxit.stagnate
+  }
+  #Parallel Control
+  else if(parallel == "YES"){
+    if(!missing(PSOtrace))
+      control$verbose = (PSOtrace > 0)
+    if(!missing(PSOmaxf))
+      control$maxfn = PSOmaxf
+    if(!missing(PSOs))
+      control$npart = PSOs
+    if(!missing(PSOk))
+      control$K = PSOk
+    if(!missing(PSOw))
+      control$IW.w = PSOw
+    if(!missing(PSOc.p))
+      control$c2 = PSOc.p
+    if(!missing(PSOc.g))
+      control$c1 = PSOc.g
+    control$parallel = "parallelWin"
+    control$write2disk = FALSE
+  }
+  #Common Control
+  if(!missing(PSOabstol))
+    control$abstol = PSOabstol
+  if(!missing(PSOreltol))
+    control$reltol = PSOreltol
+  if(!missing(PSOREPORT))
+    control$REPORT = PSOREPORT
+  if(!missing(PSOmaxit))
+    control$maxit = PSOmaxit
     
   TT = CreateTT(noClasses, discretization, boundNonDeterminism, rejection)
-  results = psoptim(par = matrix(TT,nrow=1), fn = CalculateErrorFromVector,
-                     words = sets$learn, states = noClasses, symbols = discretization,
-                    rejecting = rejection, discrete = discrete, boundNonDeterminism = boundNonDeterminism,
-                     minChance = minChance, lower = rep(0,length(TT)), upper = rep(1,length(TT)),  
-                     control = control)
+  
+  if(parallel == "NO")
+  {
+    if(require(pso) == FALSE)
+      install.packages("pso", dependencies=TRUE)
+    results = psoptim(par = matrix(TT,nrow=1), fn = CalculateErrorFromVector,
+                      words = sets$learn, states = noClasses, symbols = discretization,
+                      rejecting = rejection, discrete = discrete, boundNonDeterminism = boundNonDeterminism,
+                      minChance = minChance, lower = rep(0,length(TT)), upper = rep(1,length(TT)),  
+                      control = control)
+  }
+  else if(parallel == "YES")
+  {
+    if(require(hydroPSO) == FALSE)
+      install.packages("hydroPSO", dependencies=TRUE)
+    results = hydroPSO(par = matrix(TT,nrow=1), fn = CalculateErrorFromVector,
+                      words = sets$learn, states = noClasses, symbols = discretization,
+                      rejecting = rejection, discrete = discrete, boundNonDeterminism = boundNonDeterminism,
+                      minChance = minChance, lower = rep(0,length(TT)), upper = rep(1,length(TT)),  
+                      control = control, method = "spso2007" )
+  }
   results
 }
-
-
-
-
 
 NonRejectingPhases <- c("a1","a3","a5")
 RejectingPhases <- c("a2","a4","a6")
