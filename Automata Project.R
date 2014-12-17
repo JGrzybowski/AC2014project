@@ -1,54 +1,86 @@
-### SETS FUNCTIONS ###
-GenerateSets <- function (noClasses, noRepetitionsInClass, percTest, percForeign, features, rangeMin, rangeMax, sigma){
-  noLearnWords = noClasses * noRepetitionsInClass
-  noTestWords = (percTest * noClasses * noRepetitionsInClass) %/% 100
-  noTrainWords = noLearnWords - noTestWords 
-  noForeignLearn =  (percForeign * noTrainWords) %/% 100
-  if(noForeignLearn < 0)
-    noForeignLearn = 0
-  noForeignTest = (percForeign * noTestWords) %/% 100
-  if(noForeignTest < 0)
-    noForeignTest = 0
-  noForeignWords = noForeignLearn + noForeignTest
-  
-  learningSet = array(,dim = c(noLearnWords, features+1))
+# SETS FUNCTIONS -----
+
+## Creating sets for automata  ================================
+GenerateSets <- function( fromFile, pathTrain, pathTest, 
+                        pathForeignTrain, pathForeignTest, 
+                        noClasses = 0, noFeatures = 0, noRepetitionsInClass = 0,
+                        minRand = -Inf, maxRand = Inf, distortion = 0,
+                        percTestSize = -1, percForeignSize = -1){
+### Obtaining the main dataset  ================================
+  if(fromFile)
+  {
+    mainDataSet = LoadXlsxFile(pathTrain)
+    noWords = dim(mainDataSet)[1]
+  }
+  else 
+  {
+    noWords = noClasses * noRepetitionsInClass
+    mainDataSet = Generate.LearningSet(noClasses, noRepetitionsInClass, noFeatures, noWords, minRand, maxRand, distortion)
+  }
+### Obtaining the test dataset  ================================
+  if(fromFile && !missing(pathTest))
+  { 
+    sets = list("learn" = mainDataSet, "test" = LoadXlsxFile(pathTest))
+  }
+  else{
+    noTestWords = (percTestSize * noWords) %/% 100
+    testIndexes = sample(1:noWords,size = noTestWords)
+    sets = list("learn" = mainDataSet[-testIndexes,], "test" = mainDataSet[testIndexes,])                            
+  }
+### Obtaining the foreign train dataset  ================================
+  if(fromFile && !missing(pathForeignTrain))
+  {
+    foreignTrain = LoadXlsxFile(pathForeignTrain)
+  }
+  else
+  {
+    noForeignTrain = (percForeignSize * dim(sets$learn)[1]) %/% 100
+    foreignTrain = array(data = runif(noForeignTrain * (noFeatures+1), minRand, maxRand), dim = c(noForeignTrain,noFeatures+1))
+  }
+  foreignTrain[,1] = 0
+  sets$learn = rbind(sets$learn,foreignTrain,deparse.level = 0)
+### Obtaining the foreign test dataset  ================================
+  if(fromFile && !missing(pathForeignTest))
+  {
+    foreignTest = LoadXlsxFile(pathForeignTest)
+  }
+  else
+  {
+    noForeignTest = (percForeignSize * dim(sets$test)[1]) %/% 100
+    foreignTest = array(data = runif(noForeignTrain * (noFeatures+1), minRand, maxRand), dim = c(noForeignTest,noFeatures+1))
+  }
+  foreignTest[,1] = 0
+  sets$test = rbind(sets$test,foreignTest,deparse.level = 0)  
+  sets
+}
+
+# Generating the learning set ================================
+Generate.LearningSet <- function(noClasses, noRepetitionsInClass, noFeatures, noLearnWords, rangeMin, rangeMax, sigma){
+  learningSet = array(,dim = c(noLearnWords, noFeatures+1))
   for (c in 1:noClasses){
     indexesOfClass = (1:noRepetitionsInClass)+((c-1)*noRepetitionsInClass);
     learningSet[indexesOfClass,1] = c
-    for(f in 2:(features+1)){
+    for(f in 2:(noFeatures+1)){
       m = mean(runif(noRepetitionsInClass, min=rangeMin, max=rangeMax)) 
       learningSet[indexesOfClass,f] = m
     }
   }  
-  learningSet[,-1] = learningSet[,-1] + rnorm(n=noLearnWords*features, mean=0, sd=sigma)
-  
-  learningSet = learningSet[sample(noLearnWords),]
-  
-  foreignSet= array(runif(n = noForeignWords*(features+1), min = rangeMin, max = rangeMax),dim=c(noForeignWords,features+1))  
-  if(noForeignWords > 0)
-    foreignSet[,1] = 0
-  
-  trainN = learningSet[1:noTrainWords,]
-  testN = learningSet[(noTrainWords+1):noLearnWords,]
-  
-  if(noForeignLearn > 0)
-    trainF = foreignSet[1:noForeignLearn,]
-  else
-    trainF = NULL
-  
-  if(noForeignTest > 0)
-    testF = foreignSet[(noForeignLearn+1):(noForeignWords),]
-  else
-    testF = NULL
-
-  list("learn" = rbind(trainN, trainF, deparse.level = 0), "test" = rbind(testN, testF, deparse.level = 0))
+  learningSet[,-1] = learningSet[,-1] + rnorm(n=noLearnWords*noFeatures, mean=0, sd=sigma)
+  learningSet
 }
 
+LoadXlsxFile <- function(fileName, sheet = 1){
+  if(!require(openxlsx))
+    install.packages("openxlsx", dependencies = TRUE)
+  read.xlsx(fileName, sheet, colNames = FALSE)
+}
 Normalize <- function(sets){
   columns = dim(sets$learn)[2]
   for (i in 2:columns){
     mini = min(min(sets$learn[,i]),min(sets$test[,i]));
     maxi = max(max(sets$learn[,i]),max(sets$test[,i]));
+    if(maxi == mini)
+      mini=0
     sets$learn[,i] = (sets$learn[,i]-mini)/(maxi-mini);
     sets$test[,i] = (sets$test[,i]-mini)/(maxi-mini);
   }
@@ -60,7 +92,7 @@ ChangeValuesToSymbols <- function(x,symbols){
   newVals[x == 0] = 1;
   newVals
 }
-### AUTOMATA FUNCTIONS ###
+# AUTOMATA FUNCTIONS -----
 CreateTT <- function(states, symbols, nondeterminism = 1, rejection = TRUE){
   if(is.infinite(nondeterminism))
   {
@@ -88,7 +120,7 @@ CreateTT <- function(states, symbols, nondeterminism = 1, rejection = TRUE){
 ComputeNextState <- function(TT,inputSymbol,state){
   newState = vector(mode="numeric", length = dim(TT)[1])
   for(i in 1:length(newState)){
-    newState[i] = UseTriangleNorm(TT[i,,inputSymbol],state)
+    newState[i] = UseTriangleNorm(TT[i,,as.numeric(inputSymbol)],state)
   }
   newState
 }
@@ -119,21 +151,18 @@ triMin <- function(values){
   value
 }
 
-debug <- function(){
-  1
-}
-
 CalculateSymbolsVector <- function(value,numberOfSymbols){
+  value = as.numeric(value)
   result = vector(mode = "numeric", numberOfSymbols)
   sd = rep(1/numberOfSymbols, numberOfSymbols)
   m = 0:(numberOfSymbols-1)*(sd)+(sd/2);
   v = rep(value, numberOfSymbols)
-  tail = v<m  
+  tail = v < m
   result[tail] = pnorm(v[tail],m[tail],sd[tail],TRUE)
   result[!tail] = pnorm(v[!tail],m[!tail],sd[!tail],FALSE)
   round(result,4)
 }
-
+# CLASSIFYING WORDS -----
 ClassifyWord <- function(TT,word, discrete){  
   states = dim(TT)[1]
   symbols = dim(TT)[3]
@@ -209,19 +238,19 @@ ChangeValuesToZerosAndOnes <- function(TT,rejecting, nondeterminism){
     minimumPSOValue = 0
   else
     minimumPSOValue = 0.2
-  for(layer in 1:symbols)
+  for(symbol in 1:symbols)
     for(column in 1:states)
     {
-      ord = order(TT[,column,layer], decreasing = TRUE)
-      top = TT[,column,layer][ord[1:nondeterminism]]
-      TT[,column,layer][ord[1:nondeterminism]][top>minimumPSOValue] = -Inf
+      ord = order(TT[,column,symbol], decreasing = TRUE)
+      top = TT[ord[1:nondeterminism],column,symbol]
+      TT[ord[1:nondeterminism],column,symbol][top>minimumPSOValue] = -Inf
     } 
   TT[!is.infinite(TT)] <- 0;
   TT[is.infinite(TT)] <- 1;
   TT
 }
 
-
+# Old functions -----
 CreateAutomata <- function(sets, classes, features, numberOfSymbols,
                            learningInstancesPerClass, testingInstancesPerClass,
                            rangeMin, rangeMax, minChance, iterations){
@@ -261,37 +290,37 @@ CreateAutomata <- function(sets, classes, features, numberOfSymbols,
   results
 }
 
-### TESTS ###
-RunTest0 <- function(classes = 5, 
-                     features = 10, 
-                     numberOfSymbols = 4,
-                     learningInstancesPerClass = 10, testingInstancesPerClass = 5, 
-                     rejectingInstances = 17,
-                     rangeMin = 5, rangeMax = 10, 
-                     sigma = 0.2,
-                     minChance = 0.65,
-                     iterations = 100){
-  
-  sets = GenerateSets(classes, learningInstancesPerClass, testingInstancesPerClass, rejectingInstances, features, rangeMin, rangeMax, sigma)
-  CreateAutomata  (sets, classes, features, numberOfSymbols,
-                   learningInstancesPerClass, testingInstancesPerClass, 
-                   rangeMin, rangeMax, minChance, iterations)
-
+# TESTS -----
+TestAllPhases.Generated <- function(){
+  for (phase in Phases){
+    cat("Running test: ",phase,".\n")
+    AC2014(phase, inputType = "gen", noClasses = 2, noFeatures = 3, discretization = 4, noRepetitionsInClass = 10, 
+           minRand = 0, maxRand = 25, distortion = 0.6, 
+           percForeignSize = 15, percTestSize = 20, 
+           parallel = "NO", PSOtrace = 10, PSOmaxit = 15)
+  }
+}
+TestAllPhases.Autodetected <- function(){
+  for (phase in Phases){
+    cat("Running test: ",phase,".\n")
+    AC2014(phase, noClasses = 2, noFeatures = 3, discretization = 4, noRepetitionsInClass = 10, 
+           minRand = 0, maxRand = 25, distortion = 0.6, 
+           percForeignSize = 15, percTestSize = 20, 
+           parallel = "NO", PSOtrace = 10, PSOmaxit = 15)
+  }
 }
 
-
-RunTest1 <- function(classes = 15, features = 10, 
-                     learningInstancesPerClass = 10, testingInstancesPerClass = 5, rejectingInstances = 27,
-                     rangeMin = 5, rangeMax = 10, sigma = 0.2, numberOfSymbols = 5, minChance = 0.85, iterations = 500)
-{
-  sets = GenerateSets(classes, learningInstancesPerClass, testingInstancesPerClass, rejectingInstances, features, rangeMin, rangeMax, sigma)
-    
-  CreateAutomata(sets, classes, features, numberOfSymbols,
-                   learningInstancesPerClass, testingInstancesPerClass, 
-                   rangeMin, rangeMax, minChance, iterations)
-  
+TestAllPhases.File <- function(){
+  for (phase in Phases){
+    cat("Running test: ",phase,".\n")
+    AC2014(phase, inputType = "red", 
+           pathTrain = "SmallInputTest.xlsx", pathTest = "SmallInputTest.xlsx", 
+           pathForeignTrain = "SmallInputTest.xlsx", pathForeignTest = "SmallInputTest.xlsx", 
+           discretization = 5,
+           parallel = "NO", PSOtrace = 10, PSOmaxit = 15)
+  }
 }
-
+# Project running function -----
 AC2014 <- function(phase, inputType = "", 
                    pathTrain = "", pathTest = "", 
                    pathForeignTrain = "", pathForeignTest = "", 
@@ -306,68 +335,18 @@ AC2014 <- function(phase, inputType = "",
                    PSOs, PSOk, PSOp, PSOw, PSOc.p, PSOc.g, PSOd, PSOv.max, 
                    PSOrand.order, PSOmax.restart, PSOmaxit.stagnate) 
 {
-  #Validate phase
-  if(!(phase %in% c("a1","a2","a3","a4","a5","a6")))
+### Validate Phase dependent arguments -----
+  if(!(phase %in% Phases))
     stop("Phase must be one of {a1,a2,a3,a4,a5,a6}!")
-  #Validate inputType
-  if(inputType == "")
-    if(pathTrain == "")
-      inputType = "gen"
-    else
-      inputType = "red"
-  #Validate File parameters
-  if(inputType == "red")
-  {
-    if(noClasses != 0 || noFeatures != 0 || noRepetitionsInClass != 0 || minRand != -Inf || maxRand!= Inf || distortion != 0)
-      stop("One of the parameters cannot be declared when inputType is red. Please read user's manual before using the program.")
-    if(pathTrain == "")
-      stop("The path to input file must be given in parameter pathTrain!")
-    if(pathTest == "" && percTestSize == -1)
-      stop("The path to the test data or percentage of test data must be declared!")
-    if(phase %in% c("a2","a4","a6"))
-    {
-      if(pathForeignTrain == "" && perccForeignSize == -1)
-        stop("The path to the foreign data or percentage of foreign data must be declared!")
-      if(pathForeignTest == "" && percForeignSize == -1)
-        stop("The path to the foreign data or percentage of foreign data must be declared!")    
-    }
-  }
-  else
-  {
-    if(pathTrain != "" || pathTest != "" || pathForeignTrain != "" || pathForeignTest != "")
-      stop("One of the parameters cannot be declared when inputType is gen. Please read user's manual before using the program.")
-    if(noClasses <= 1 || is.integer(noClasses))
-      stop("noClasses must be integer bigger than 1!")
-    if(noFeatures <= 0 || is.integer(noFeatures))
-      stop("noFeatures must be integer bigger than 0!")
-    if(noRepetitionsInClass <= 0 || is.integer(noRepetitionsInClass))
-      stop("noRepetitionsInClass must be integer bigger than 0!")
-    if(minRand == -Inf || maxRand == Inf)
-      stop("Both minRand and maxRand mus be explicitly declared real numbers!")
-    if(distortion <= 0)
-      stop("distortion must be real number bigger than 0!")
-    if(discretization <= 0)
-      stop("discretization must be real number bigger than 0!")
-    if(percTestSize == -1)
-      stop("The percentage of test data must be declared!")
-    
-    sets = GenerateSets(noClasses = noClasses, noRepetitionsInClass = noRepetitionsInClass, 
-                        percTest = percTestSize, percForeignSize, features = noFeatures, rangeMin = minRand, rangeMax = maxRand, sigma = distortion)
-  }
-  
-  
-  sets = Normalize(sets)
-  if(phase %in% DiscretePhases)
-  {
-    sets$learn[,2:noFeatures+1] = ChangeValuesToSymbols(sets$learn[,2:noFeatures+1], discretization)
-    sets$test[,2:noFeatures+1] = ChangeValuesToSymbols(sets$test[,2:noFeatures+1], discretization)
-  }
-  
+### REJECTION =====
   if(phase %in% NonRejectingPhases)
+  {
     rejection = FALSE
+    percForeignSize = 0
+  }
   else 
     rejection = TRUE
-  
+### DETERMINISM =====
   if(phase %in% DeterministicPhases)
   {
     minChance = 0.5 
@@ -377,15 +356,84 @@ AC2014 <- function(phase, inputType = "",
   else if(phase %in% NonDeterministicPhases)
   {
     minChance = 0.5
-     discrete = TRUE
+    discrete = TRUE
   }
   else
   {
     minChance = 0.75
     boundNonDeterminism = Inf
     discrete = FALSE
-  }
+  }  
 
+### Validate inputType =====
+  if(inputType == "")
+    if(pathTrain == "")
+      inputType = "gen"
+    else
+      inputType = "red"
+### Validate parameters for file input =====
+  if(inputType == "red")
+  {
+    if(noClasses != 0 || noFeatures != 0 || noRepetitionsInClass != 0 || minRand != -Inf || maxRand!= Inf || distortion != 0)
+      stop("One of the parameters cannot be declared when inputType is red. Please read user's manual before using the program.")
+    if(pathTrain == "")
+      stop("The path to input file must be given in parameter pathTrain!")
+    if(pathTest == "" && percTestSize == -1)
+      stop("The path to the test data or percentage of test data must be declared!")
+    if(discretization <= 0)
+      stop("discretization must be real number bigger than 0!")
+    if(phase %in% c("a2","a4","a6"))
+    {
+      if(pathForeignTrain == "" && perccForeignSize == -1)
+        stop("The path to the foreign data or percentage of foreign data must be declared!")
+      if(pathForeignTest == "" && percForeignSize == -1)
+        stop("The path to the foreign data or percentage of foreign data must be declared!")    
+    }
+    sets = GenerateSets(fromFile = TRUE, 
+                        pathTrain, pathTest, 
+                        pathForeignTrain, pathForeignTest,
+                        percTestSize = percTestSize)
+    noClasses = length(unique(unique(sets$learn[,1]),unique(sets$test[,1])))
+    noFeatures = dim(sets$learn)[2]-1
+  }
+### Validate parameters for generated input =====
+  else
+  {
+    if(!missing(pathTrain) 
+       || !missing(pathTest) 
+       || !missing(pathForeignTrain) 
+       || !missing(pathForeignTest) )
+      stop("One of the parameters cannot be declared when inputType is gen. Please read user's manual before using the program.")
+    if(noClasses <= 1)
+      stop("noClasses must be integer bigger than 1!")
+    if(noFeatures <= 0)
+      stop("noFeatures must be integer bigger than 0!")
+    if(noRepetitionsInClass <= 0)
+      stop("noRepetitionsInClass must be integer bigger than 0!")
+    if(minRand == -Inf || maxRand == Inf)
+      stop("Both minRand and maxRand mus be explicitly declared real numbers!")
+    if(distortion <= 0)
+      stop("distortion must be real number bigger than 0!")
+    if(discretization <= 0)
+      stop("discretization must be real number bigger than 0!")
+    if(percTestSize < 0)
+      stop("The percentage of test data must be declared!")
+    if(percForeignSize < 0)
+      stop("The percentage of foreign data must be declared!")
+    sets = GenerateSets(fromFile = FALSE, noClasses = noClasses, noFeatures = noFeatures, 
+                        noRepetitionsInClass = noRepetitionsInClass,
+                        minRand = minRand, maxRand = maxRand, distortion = distortion,
+                        percTestSize = percTestSize, percForeignSize = percForeignSize)
+  }
+  
+  sets = Normalize(sets)
+### DISCRETIZATION =====  
+  if(discrete)
+  {
+    sets$learn[,2:(noFeatures+1)] = ChangeValuesToSymbols(sets$learn[,2:(noFeatures+1)], discretization)
+    sets$test[,2:(noFeatures+1)] = ChangeValuesToSymbols(sets$test[,2:(noFeatures+1)], discretization)
+  }
+### PSO Control parameters =====
   control = list()
   #SingleThread Control
   if(parallel == "NO"){
@@ -473,7 +521,8 @@ AC2014 <- function(phase, inputType = "",
   }
   results
 }
-
+# Phases -----
+Phases <- c("a1","a2","a3","a4","a5","a6")
 NonRejectingPhases <- c("a1","a3","a5")
 RejectingPhases <- c("a2","a4","a6")
 DeterministicPhases <- c("a1","a2")
