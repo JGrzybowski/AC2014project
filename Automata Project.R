@@ -1,6 +1,6 @@
 # SETS FUNCTIONS -----
 ## Creating sets for automata  ================================
-GenerateSets <- function( fromFile, pathTrain, pathTest, 
+GenerateSets <- function(fromFile, pathTrain, pathTest, 
                         pathForeignTrain, pathForeignTest, 
                         noClasses = 0, noFeatures = 0, noRepetitionsInClass = 0,
                         minRand = -Inf, maxRand = Inf, distortion = 0,
@@ -35,11 +35,11 @@ GenerateSets <- function( fromFile, pathTrain, pathTest,
   else
   {
     noForeignTrain = (percForeignSize * dim(sets$learn)[1]) %/% 100
-    foreignTrain = array(data = runif(noForeignTrain * (noFeatures+Column.NoAdditionalColumns), minRand, maxRand), dim = c(noForeignTrain,noFeatures+Column.NoAdditionalColumns))
+    foreignTrain = array(data = runif(noForeignTrain * (noFeatures+2), minRand, maxRand), dim = c(noForeignTrain,noFeatures+2))
     startingIndex = dim(sets$learn)[1] + dim(sets$test)[1]
-    foreignTrain[,Column.WordIndex] = (1:noForeignTrain)+startingIndex
+    foreignTrain[,1] = (1:noForeignTrain)+startingIndex
   }
-  foreignTrain[,Column.ExpectedClass] = 0
+  foreignTrain[,2] = 0
   sets$learn = rbind(sets$learn,foreignTrain,deparse.level = 0)
 ### Obtaining the foreign test dataset  ================================
   if(fromFile && !missing(pathForeignTest))
@@ -49,28 +49,28 @@ GenerateSets <- function( fromFile, pathTrain, pathTest,
   else
   {
     noForeignTest = (percForeignSize * dim(sets$test)[1]) %/% 100
-    foreignTest = array(data = runif(noForeignTrain * (noFeatures+Column.NoAdditionalColumns), minRand, maxRand), dim = c(noForeignTest,noFeatures+Column.NoAdditionalColumns))
+    foreignTest = array(data = runif(noForeignTrain * (noFeatures+2), minRand, maxRand), dim = c(noForeignTest,noFeatures+2))
     startingIndex = dim(sets$learn)[1] + dim(sets$test)[1]
-    foreignTest[,Column.WordIndex] = (1:noForeignTest)+startingIndex
+    foreignTest[,1] = (1:noForeignTest)+startingIndex
   }
-  foreignTest[,Column.ExpectedClass] = 0
+  foreignTest[,2] = 0
   sets$test = rbind(sets$test,foreignTest,deparse.level = 0)  
   sets
 }
 
 # Generating the learning set ================================
 Generate.LearningSet <- function(noClasses, noRepetitionsInClass, noFeatures, noLearnWords, rangeMin, rangeMax, sigma){
-  learningSet = array(,dim = c(noLearnWords, noFeatures+Column.NoAdditionalColumns))
+  learningSet = array(,dim = c(noLearnWords, noFeatures+2))
   for (c in 1:noClasses){
     indexesOfClass = (1:noRepetitionsInClass)+((c-1)*noRepetitionsInClass);
-    learningSet[indexesOfClass,Column.ExpectedClass] = c
-    for(f in (1:noFeatures)+Column.NoAdditionalColumns){
+    learningSet[indexesOfClass,2] = c
+    for(f in (1:noFeatures)+2){
       m = mean(runif(noRepetitionsInClass, min=rangeMin, max=rangeMax)) 
       learningSet[indexesOfClass,f] = m
     }
   }  
-  learningSet[,Column.WordIndex] = 1:noLearnWords
-  learningSet[,Column.Features] = learningSet[,Column.Features] + rnorm(n=noLearnWords*noFeatures, mean=0, sd=sigma)
+  learningSet[,1] = 1:noLearnWords
+  learningSet[,c(-1,-2)] = learningSet[,c(-1,-2)] + rnorm(n=noLearnWords*noFeatures, mean=0, sd=sigma)
   learningSet
 }
 
@@ -84,7 +84,7 @@ LoadXlsxFile <- function(fileName, sheet = 1, startingIndex =1){
 }
 Normalize <- function(sets){
   noColumns = dim(sets$learn)[2]
-  for (i in ((1:noColumns)[Column.Features])){
+  for (i in ((1:noColumns)[c(-1,-2)])){
     mini = min(min(sets$learn[,i]),min(sets$test[,i]));
     maxi = max(max(sets$learn[,i]),max(sets$test[,i]));
     if(maxi == mini)
@@ -208,8 +208,8 @@ CalculateError <- function(TT,words,minChance,discrete){
   classesNo = dim(TT)[1]
   for(i in 1:(wordsNo)){
     #cat("#",i," word - ", words[i,], " \n");
-    possibleClassification = ClassifyWord(TT,words[i,Column.Features],discrete)
-    expectedClass = words[i,Column.ExpectedClass]
+    possibleClassification = ClassifyWord(TT,words[i,c(-1,-2)],discrete)
+    expectedClass = words[i,2]
     #If the word should be rejected
     if (expectedClass==0){
         if(sum(possibleClassification<minChance) != length(possibleClassification))
@@ -298,11 +298,11 @@ CreateAutomata <- function(sets, classes, features, numberOfSymbols,
 }
 
 # TESTS -----
-TimeTest <- function(fn)
-{
+TimeTest <- function(fn){
   ptm = proc.time()
   v = fn
-  proc.time() - ptm  
+  time =  proc.time() - ptm
+  list("time" = time, "fnResults" = v)
 }
 TestAllPhases.Generated <- function(quiet = FALSE){
   if(quiet)
@@ -362,7 +362,7 @@ AC2014 <- function(phase, inputType = "",
                    minRand = -Inf, maxRand = Inf, distortion = 0,
                    percTestSize = -1, percForeignSize = -1,
                    discretization = 0, boundNonDeterminism = 0,
-                   parallel = "YES",
+                   parallel = "NO",
                    PSOtrace, PSOfnscale, PSOmaxit, PSOmaxf,
                    PSOabstol, PSOreltol, PSOREPORT, PSOtrace.stats,
                    PSOs, PSOk, PSOp, PSOw, PSOc.p, PSOc.g, PSOd, PSOv.max, 
@@ -426,7 +426,7 @@ AC2014 <- function(phase, inputType = "",
                         pathTrain, pathTest, 
                         pathForeignTrain, pathForeignTest,
                         percTestSize = percTestSize)
-    noClasses = length(unique(unique(sets$learn[,Column.ExpectedClass]),unique(sets$test[,Column.ExpectedClass])))
+    noClasses = length(unique(unique(sets$learn[,2]),unique(sets$test[,2])))
   }
 ### Validate parameters for generated input =====
   else
@@ -462,8 +462,8 @@ AC2014 <- function(phase, inputType = "",
 ### DISCRETIZATION =====  
   if(discrete)
   {
-    sets$learn[,Column.Features] = ChangeValuesToSymbols(sets$learn[,Column.Features], discretization)
-    sets$test[,Column.Features] = ChangeValuesToSymbols(sets$test[,Column.Features], discretization)
+    sets$learn[,c(-1,-2)] = ChangeValuesToSymbols(sets$learn[,c(-1,-2)], discretization)
+    sets$test[,c(-1,-2)] = ChangeValuesToSymbols(sets$test[,c(-1,-2)], discretization)
   }
 ### PSO Control parameters =====
   control = list()
@@ -516,6 +516,11 @@ AC2014 <- function(phase, inputType = "",
       control$c2 = PSOc.p
     if(!missing(PSOc.g))
       control$c1 = PSOc.g
+    if(!missing(PSOmaxit.stagnate))
+    {
+      control$RG.thr = PSOmaxit.stagnate
+      control$use.RG = TRUE
+    }
     control$parallel = "parallelWin"
     control$write2disk = FALSE
   }
@@ -559,10 +564,11 @@ GenerateReport <- function(fileName, set, sheetName = "Classification"){
   wb = createWorkbook(creator = "Jan Grzybowski");
   addWorksheet(wb,sheetName)
   ord = order(set[,Column.WordIndex])
-  classification = set[ord,Column.ExpectedClass]
+  classification = set[ord,2]
   writeData(wb, sheetName, classification, colNames = FALSE, rowNames = FALSE)
   saveWorkbook(wb,fileName,overwrite = TRUE)
 }
+
 # Phases -----
 Phases <- c("a1","a2","a3","a4","a5","a6")
 NonRejectingPhases <- c("a1","a3","a5")
@@ -572,8 +578,8 @@ NonDeterministicPhases <- c("a3","a4")
 DiscretePhases <- c("a1","a2","a3","a4")
 FuzzyPhases <- c("a5","a6")
 # Constants -----
-Column.WordIndex <- 1
-Column.ExpectedClass <- 2
-Column.AddtionalColumns <- c(Column.WordIndex, Column.ExpectedClass)
-Column.NoAdditionalColumns <- length(Column.AddtionalColumns)
-Column.Features <- c(-Column.WordIndex, -Column.ExpectedClass)
+# Column.WordIndex <- 1
+# Column.ExpectedClass <- 2
+# Column.AddtionalColumns <- c(Column.WordIndex, Column.ExpectedClass)
+# Column.NoAdditionalColumns <- length(Column.AddtionalColumns)
+# Column.Features <- c(-Column.WordIndex, -Column.ExpectedClass)
