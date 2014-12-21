@@ -565,7 +565,7 @@ AC2014 <- function(phase, inputType = "",
                       minChance = minChance, lower = rep(0,length(TT)), upper = rep(1,length(TT)),  
                       control = control, method = "spso2007" ))
   }
-  LearnResults = list("time" = tmpResults$time, "PSOresults" = tmpResults$fnResults) 
+  LearnResults = list("time" = as.vector(tmpResults$time)[3], "PSOresults" = tmpResults$fnResults) 
 
   TT = HandlePSOVector(vTT = tmpResults$fnResults$par, states = noClasses, symbols = discretization, rejecting = rejection, boundNonDeterminism = boundNonDeterminism)
   efficiency = CalculateEfficiency(TT,words = sets$test,minChance = minChance, discrete = discrete)
