@@ -26,6 +26,14 @@ GenerateSets <- function(fromFile, pathTrain, pathTest,
     testIndexes = sample(1:noWords,size = noTestWords)
     sets = list("learn" = mainDataSet[-testIndexes,], "test" = mainDataSet[testIndexes,])                            
   }
+  
+  if(is.na(match(0,sets$learn[,2])))
+    sets$shift = 0
+  else{
+    sets$shift = -1
+    sets$learn[,2] = sets$learn[,2]+1
+    sets$test[,2] = sets$test[,2]+1
+  }
 ### Obtaining the foreign train dataset  ================================
   if(fromFile && !missing(pathForeignTrain))
   {
@@ -339,10 +347,9 @@ TestAllPhases.File <- function(quiet = FALSE){
   for (phase in Phases){
     cat("",phase)
     AC2014(phase, inputType = "red", 
-           pathTrain = "SmallInputTest.xlsx", pathTest = "SmallInputTest.xlsx", 
-           pathForeignTrain = "SmallInputTest.xlsx", pathForeignTest = "SmallInputTest.xlsx", 
-           discretization = 5,
-           parallel = "NO", PSOtrace = trace, PSOmaxit = 10)
+           pathTrain = "InputLearningSet.xlsx", pathTest = "InputTestSet.xlsx", 
+           pathForeignTrain = "InputForeignSet.xlsx", pathForeignTest = "InputForeignTestSet.xlsx", 
+           discretization = 5, parallel = "NO", PSOtrace = trace, PSOmaxit = 10)
   }
 }
 TestAllPhases.All <- function(quiet = TRUE){
@@ -518,7 +525,7 @@ AC2014 <- function(phase, inputType = "",
       control$c1 = PSOc.g
     if(!missing(PSOmaxit.stagnate))
     {
-      control$RG.thr = PSOmaxit.stagnate
+      control$RG.miniter = PSOmaxit.stagnate
       control$use.RG = TRUE
     }
     control$parallel = "parallelWin"
@@ -527,6 +534,8 @@ AC2014 <- function(phase, inputType = "",
   #Common Control
   if(!missing(PSOabstol))
     control$abstol = PSOabstol
+  else 
+    control$abstol = 0
   if(!missing(PSOreltol))
     control$reltol = PSOreltol
   if(!missing(PSOREPORT))
@@ -540,35 +549,96 @@ AC2014 <- function(phase, inputType = "",
   {
     if(require(pso) == FALSE)
       install.packages("pso", dependencies=TRUE)
-    results = psoptim(par = matrix(TT,nrow=1), fn = CalculateErrorFromVector,
+    tmpResults = TimeTest(psoptim(par = matrix(TT,nrow=1), fn = CalculateErrorFromVector,
                       words = sets$learn, states = noClasses, symbols = discretization,
                       rejecting = rejection, discrete = discrete, boundNonDeterminism = boundNonDeterminism,
                       minChance = minChance, lower = rep(0,length(TT)), upper = rep(1,length(TT)),  
-                      control = control)
+                      control = control))
   }
   else if(parallel == "YES")
   {
     if(require(hydroPSO) == FALSE)
       install.packages("hydroPSO", dependencies=TRUE)
-    results = hydroPSO(par = matrix(TT,nrow=1), fn = CalculateErrorFromVector,
+    tmpResults = TimeTest(hydroPSO(par = matrix(TT,nrow=1), fn = CalculateErrorFromVector,
                       words = sets$learn, states = noClasses, symbols = discretization,
                       rejecting = rejection, discrete = discrete, boundNonDeterminism = boundNonDeterminism,
                       minChance = minChance, lower = rep(0,length(TT)), upper = rep(1,length(TT)),  
-                      control = control, method = "spso2007" )
+                      control = control, method = "spso2007" ))
   }
-  results
+  LearnResults = list("time" = tmpResults$time, "PSOresults" = tmpResults$fnResults) 
+
+  TT = HandlePSOVector(vTT = tmpResults$fnResults$par, states = noClasses, symbols = discretization, rejecting = rejection, boundNonDeterminism = boundNonDeterminism)
+  efficiency = CalculateEfficiency(TT,words = sets$test,minChance = minChance, discrete = discrete)
+  
+
+  if(!missing(pathOutputClass)){
+    if(missing(pathTest))
+      classes = PrepareCalssification(rbind(sets$learn, sets$test),TT,minChance,discrete,sets$shift)
+    else
+      classes = PrepareCalssification(sets$test,TT,minChance,discrete,sets$shift)
+    GenerateReport(pathOutputClass,classes)
+  }
+
+  
+
+  list("optimalization" = LearnResults, "efficiency" = efficiency, "TT" = TT)
 }
 # Generating Reports -----
 GenerateReport <- function(fileName, set, sheetName = "Classification"){
   require(openxlsx)
   wb = createWorkbook(creator = "Jan Grzybowski");
   addWorksheet(wb,sheetName)
-  ord = order(set[,Column.WordIndex])
+  ord = order(set[,1])
   classification = set[ord,2]
   writeData(wb, sheetName, classification, colNames = FALSE, rowNames = FALSE)
   saveWorkbook(wb,fileName,overwrite = TRUE)
 }
-
+PrepareCalssification <- function(set, TT, minChance, discrete, shift){
+  words = set
+  wordsNo = dim(words)[1]
+  classesNo = dim(TT)[1]
+  classification = matrix(NA, nrow = wordsNo, ncol = 2)
+  for(i in 1:(wordsNo)){
+    possibleClassification = ClassifyWord(TT,words[i,c(-1,-2)],discrete)
+    expectedClass = words[i,2]
+    #If the word should be rejected
+    if (expectedClass==0){
+      if(sum(possibleClassification<minChance) == length(possibleClassification))
+        classification[i,]=c(words[i,1],0)
+      else
+        classification[i,]=c(words[i,1], order(possibleClassification,decreasing = TRUE)[1])
+    }
+    #If the word should be accepted in specific class  
+    else {
+      if (possibleClassification[expectedClass] >= minChance)
+        classification[i,]=c(words[i,1], expectedClass)
+      else
+        classification[i,]=c(words[i,1], order(possibleClassification,decreasing = TRUE)[1])
+    }
+  }
+  classification[,2] = classification[,2]+shift
+  classification
+}
+CalculateEfficiency <- function(TT,words,minChance,discrete){
+  hits = 0
+  wordsNo = dim(words)[1]
+  classesNo = dim(TT)[1]
+  for(i in 1:(wordsNo)){
+    possibleClassification = ClassifyWord(TT,words[i,c(-1,-2)],discrete)
+    expectedClass = words[i,2]
+    #If the word should be rejected
+    if (expectedClass==0){
+      if(sum(possibleClassification<minChance) == length(possibleClassification))
+        hits = hits+1
+    }
+    #If the word should be accepted in specific class  
+    else {
+      if (possibleClassification[expectedClass] >= minChance)
+        hits = hits+1
+    }
+  }
+  hits/wordsNo
+}
 # Phases -----
 Phases <- c("a1","a2","a3","a4","a5","a6")
 NonRejectingPhases <- c("a1","a3","a5")
