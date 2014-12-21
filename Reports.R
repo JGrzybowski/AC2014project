@@ -6,12 +6,12 @@ Report.noInstances <- function(values){
     noInstances = values[i]
     noTry = match(i, 1:length(values))
     results = AC2014("a6", inputType = "gen", noClasses = 10, noFeatures = 5, 
-                              discretization = 5, noRepetitionsInClass = noInstances, 
-                              minRand = 0, maxRand = 25, distortion = 1, 
-                              percForeignSize = 15, percTestSize = 20, 
-                              parallel = "YES", PSOmaxit = 1000)
+                     discretization = 5, noRepetitionsInClass = noInstances, 
+                     minRand = 0, maxRand = 25, distortion = 1, 
+                     percForeignSize = 15, percTestSize = 20, 
+                     parallel = "YES", PSOmaxit = 1000)
     
-    results = list("value" = noInstances, "time" = as.vector(results$optimalization$time), "error" = results$optimalization$PSOresults$value)
+    results = list("value" = noInstances, "time" = as.vector(results$optimalization$time), "error" = results$optimalization$PSOresults$value, "efficiency" = results$efficiency)
     writeData(wb,sheet = Sheets.noInstances$name,results,1,noTry,
               colNames = F,rowNames=F)
   }
@@ -25,12 +25,12 @@ Report.noClasses <- function(values){
     noClasses = values[i]
     noTry = match(i, 1:length(values))
     results = AC2014("a6", inputType = "gen", noClasses = noClasses, noFeatures = 3, 
-                              discretization = 5, noRepetitionsInClass = 15, 
-                              minRand = 0, maxRand = 25, distortion = 1, 
-                              percForeignSize = 15, percTestSize = 20, 
-                              parallel = "YES", PSOmaxit = 1000)
+                     discretization = 5, noRepetitionsInClass = 15, 
+                     minRand = 0, maxRand = 25, distortion = 1, 
+                     percForeignSize = 15, percTestSize = 20, 
+                     parallel = "YES", PSOmaxit = 1000)
     
-    results = list("value" = noClasses, "time" = as.vector(results$optimalization$time), "error" = results$optimalization$PSOresults$value)
+    results = list("value" = noClasses, "time" = as.vector(results$optimalization$time), "error" = results$optimalization$PSOresults$value, "efficiency" = results$efficiency)
     writeData(wb,sheet = Sheets.noClasses$name,results,1,noTry,
               colNames = F, rowNames = F)
   }
@@ -44,12 +44,12 @@ Report.discretization <- function(values){
     discretization = values[i]
     noTry = match(i, 1:length(values))
     results = AC2014("a6", inputType = "gen", noClasses = 10, noFeatures = 5, 
-                              discretization = discretization, noRepetitionsInClass = 15, 
-                              minRand = 0, maxRand = 25, distortion = 1, 
-                              percForeignSize = 15, percTestSize = 20, 
-                              parallel = "YES", PSOmaxit = 10)
+                     discretization = discretization, noRepetitionsInClass = 15, 
+                     minRand = 0, maxRand = 25, distortion = 1, 
+                     percForeignSize = 15, percTestSize = 20, 
+                     parallel = "YES", PSOmaxit = 10)
     
-    results = list("value" = discretization, "time" = as.vector(results$optimalization$time), "error" = results$optimalization$PSOresults$value)
+    results = list("value" = discretization, "time" = as.vector(results$optimalization$time), "error" = results$optimalization$PSOresults$value, "efficiency" = results$efficiency)
     writeData(wb,sheet = Sheets.discretization$name,results,1,noTry,
               colNames = F, rowNames = F)
   }
@@ -63,12 +63,12 @@ Report.maxit <- function(values){
     maxit = values[i]
     noTry = match(i, 1:length(values))
     results = AC2014("a6", inputType = "gen", noClasses = 10, noFeatures = 5, 
-                              discretization = 5, noRepetitionsInClass = 15, 
-                              minRand = 0, maxRand = 25, distortion = 1, 
-                              percForeignSize = 15, percTestSize = 20, 
-                              parallel = "YES", PSOmaxit = maxit)
+                     discretization = 5, noRepetitionsInClass = 15, 
+                     minRand = 0, maxRand = 25, distortion = 1, 
+                     percForeignSize = 15, percTestSize = 20, 
+                     parallel = "YES", PSOmaxit = maxit)
     
-    results = list("value" = maxit, "time" = as.vector(results$optimalization$time), "error" = results$optimalization$PSOresults$value)
+    results = list("value" = maxit, "time" = as.vector(results$optimalization$time), "error" = results$optimalization$PSOresults$value, "efficiency" = results$efficiency)
     writeData(wb,sheet = Sheets.maxit$name,results,1,noTry,
               colNames = F, rowNames = F)
   }
@@ -82,12 +82,12 @@ Report.parallelism <- function(values){
     parallelism = values[i]
     noTry = match(i, 1:length(values))
     results = AC2014("a6", inputType = "gen", noClasses = 10, noFeatures = 5, 
-                              discretization = 5, noRepetitionsInClass = 15, 
-                              minRand = 0, maxRand = 25, distortion = 1, 
-                              percForeignSize = 15, percTestSize = 20, 
-                              parallel = "NO", PSOmaxit = 100)
+                     discretization = 5, noRepetitionsInClass = 15, 
+                     minRand = 0, maxRand = 25, distortion = 1, 
+                     percForeignSize = 15, percTestSize = 20, 
+                     parallel = "NO", PSOmaxit = 100)
     
-    results = list("value" = parallelism, "time" = as.vector(results$optimalization$time), "error" = results$optimalization$PSOresults$value)
+    results = list("value" = parallelism, "time" = as.vector(results$optimalization$time), "error" = results$optimalization$PSOresults$value, "efficiency" = results$efficiency)
     writeData(wb,sheet = Sheets.parallelism$name,results,1,noTry,
               colNames = F, rowNames = F)
   }
@@ -101,12 +101,12 @@ Report.basicPSOparams <- function(values){
     basicPSOparams = values[i]
     noTry = match(i, 1:length(values))
     results = AC2014("a6", inputType = "gen", noClasses = 10, noFeatures = 5, 
-                              discretization = 5, noRepetitionsInClass = 15, 
-                              minRand = 0, maxRand = 25, distortion = 1, 
-                              percForeignSize = 15, percTestSize = 20, 
-                              parallel = "NO", PSOmaxit = 100)
+                     discretization = 5, noRepetitionsInClass = 15, 
+                     minRand = 0, maxRand = 25, distortion = 1, 
+                     percForeignSize = 15, percTestSize = 20, 
+                     parallel = "NO", PSOmaxit = 100)
     
-    results = list("value" = basicPSOparams, "time" = as.vector(results$optimalization$time), "error" = results$optimalization$PSOresults$value)
+    results = list("value" = basicPSOparams, "time" = as.vector(results$optimalization$time), "error" = results$optimalization$PSOresults$value, "efficiency" = results$efficiency)
     writeData(wb,sheet = Sheets.basicPSOparams$name,results,1,noTry,
               colNames = F, rowNames = F)
   }
@@ -120,12 +120,12 @@ Report.ForeignElements <- function(values){
     ForeignElements = values[i]
     noTry = match(i, 1:length(values))
     results = AC2014("a6", inputType = "gen", noClasses = 10, noFeatures = 5, 
-                              discretization = 5, noRepetitionsInClass = 15, 
-                              minRand = 0, maxRand = 25, distortion = 1, 
-                              percForeignSize = ForeignElements, percTestSize = 20, 
-                              parallel = "NO", PSOmaxit = 100)
+                     discretization = 5, noRepetitionsInClass = 15, 
+                     minRand = 0, maxRand = 25, distortion = 1, 
+                     percForeignSize = ForeignElements, percTestSize = 20, 
+                     parallel = "NO", PSOmaxit = 100)
     
-    results = list("value" = ForeignElements, "time" = as.vector(results$optimalization$time), "error" = results$optimalization$PSOresults$value)
+    results = list("value" = ForeignElements, "time" = as.vector(results$optimalization$time), "error" = results$optimalization$PSOresults$value, "efficiency" = results$efficiency)
     writeData(wb,sheet = Sheets.ForeignElements$name,results,1,noTry,
               colNames = F, rowNames = F)
   }
@@ -139,12 +139,12 @@ Report.nondeterminism <- function(values){
     nondeterminism = values[i]
     noTry = match(i, 1:length(values))
     results = AC2014("a4", inputType = "gen", noClasses = 10, noFeatures = 5, 
-                              discretization = 5, noRepetitionsInClass = 15, 
-                              minRand = 0, maxRand = 25, distortion = 1, boundNonDeterminism = nonDeterminism,
-                              percForeignSize = 20, percTestSize = 20, 
-                              parallel = "NO", PSOmaxit = 100)
+                     discretization = 5, noRepetitionsInClass = 15, 
+                     minRand = 0, maxRand = 25, distortion = 1, boundNonDeterminism = nonDeterminism,
+                     percForeignSize = 20, percTestSize = 20, 
+                     parallel = "NO", PSOmaxit = 100)
     
-    results = list("value" = nondeterminism, "time" = as.vector(results$optimalization$time), "error" = results$optimalization$PSOresults$value)
+    results = list("value" = nondeterminism, "time" = as.vector(results$optimalization$time), "error" = results$optimalization$PSOresults$value, "efficiency" = results$efficiency)
     writeData(wb,sheet = Sheets.nondeterminism$name,results,1,noTry,
               colNames = F, rowNames = F)
   }
