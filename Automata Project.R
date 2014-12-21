@@ -362,9 +362,9 @@ TestAllPhases.All <- function(quiet = TRUE){
 }
 # Project running function -----
 AC2014 <- function(phase, inputType = "", 
-                   pathTrain = "", pathTest = "", 
-                   pathForeignTrain = "", pathForeignTest = "", 
-                   pathOutputClass = "", pathOutputErr = "",
+                   pathTrain, pathTest, 
+                   pathForeignTrain, pathForeignTest, 
+                   pathOutputClass, pathOutputErr,
                    noClasses = 0, noFeatures = 0, noRepetitionsInClass = 0,
                    minRand = -Inf, maxRand = Inf, distortion = 0,
                    percTestSize = -1, percForeignSize = -1,
@@ -377,7 +377,7 @@ AC2014 <- function(phase, inputType = "",
 {
 
 ### Validate Phase dependent arguments -----
-  if(!(phase %in% Phases))
+  if(missing(phase) || !(phase %in% Phases))
     stop("Phase must be one of {a1,a2,a3,a4,a5,a6}!")
 ### REJECTION =====
   if(phase %in% NonRejectingPhases)
@@ -406,19 +406,20 @@ AC2014 <- function(phase, inputType = "",
     discrete = FALSE
   }  
 ### Validate inputType =====
-  if(inputType == "")
-    if(pathTrain == "")
+  if(missing(inputType))
+    if(missing(pathTrain))
       inputType = "gen"
     else
       inputType = "red"
 ### Validate parameters for file input =====
   if(inputType == "red")
   {
-    if(noClasses != 0 || noFeatures != 0 || noRepetitionsInClass != 0 || minRand != -Inf || maxRand!= Inf || distortion != 0)
+    if(!missing(noClasses) || !missing(noFeatures) || !missing(noRepetitionsInClass) 
+       || !missing(minRand) || !missing(maxRand) || !missing(distortion))
       stop("One of the parameters cannot be declared when inputType is red. Please read user's manual before using the program.")
-    if(pathTrain == "")
+    if(missing(pathTrain))
       stop("The path to input file must be given in parameter pathTrain!")
-    if(pathTest == "" && percTestSize == -1)
+    if(missing(pathTest) && missing(percTestSize))
       stop("The path to the test data or percentage of test data must be declared!")
     if(discretization <= 0)
       stop("discretization must be real number bigger than 0!")
