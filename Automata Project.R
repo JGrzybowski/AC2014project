@@ -1,5 +1,55 @@
 # SETS FUNCTIONS -----
 ## Creating sets for automata  ================================
+#' Creates list with learning and testing set using given parameters.
+#' 
+#' @param fromFile A boolean value describing if training data should be 
+#' taken from file or rather be generated using given values.
+#' @param pathTrain Prameter descibing path to file with data for training set.
+#' Obligatory if fromFile is TRUE.
+#' @param pathTest Prameter descibing path to file with data for testing set.
+#' Nonobligatory. If it is not given, the percTestSize variable will be used.
+#' @param pathForeignTrain Prameter descibing path to file with foreign data for training set.
+#' Nonobligatory. If it is not given, the percForeignSize variable will be used.
+#' @param pathForeignTest Prameter descibing path to file with foreign data for testing set.
+#' Nonobligatory. If it is not given, the percForeignSize variable will be used.
+#' 
+#' All of Prameters below are obligatory if fromFile is FALSE.
+#' @param noClasses A paramter telling how many classes will be in generated sets. 
+#' Used only if data should be generated.
+#' @param noFeatures A paramter telling how many features will have elements in generated sets. 
+#' Used only if data should be generated.
+#' @param noRepetitionsInClass A paramter telling how many elements of each class will be in training and testing set together. 
+#' Used only if data should be generated.
+#' 
+#' @param minRand A parameter setting minimal value of mean of feature of given class.
+#' Used only if data should be generated.
+#' @param maxRand A parameter setting maximal value of mean of feature of given class.
+#' Used only if data should be generated.
+#' @param distortion A parateter setting standard deviation from mean of values of features in each class.
+#' Used only if data should be generated.
+#' 
+#' Parameters below are used if paths to test set and foreign sets were not given or if sets should be generated.
+#' They are both obligatory parameters when fromFile is FALSE.
+#' @param percTestSize Describes what percentage of training set will be used as a testing set. 
+#' Value of parameter is given in percents. Meaning if percTestSize = 20, 
+#' then random 20% of training set will be used as a testing set.
+#' @param percForeignSize Describes how big in percentage of separetly training and testing set the foreign sets will be.
+#' Value of parameter is given in percents. Meaning if percForeignSize = 20, 
+#' then Foreign set of testing set will be of size 20% of the training set before adding foreign elements 
+#' and similarly in case of testing set.
+#' 
+#' @return The list consisting of \code{learningSet} and \code{testingSet}.
+#' 
+#' @examples
+#' #Generating sets from files
+#' GenerateSets(fromFile = TRUE, 
+#'          pathTrain = "InputLearningSet.xlsx", pathTest = "InputTestSet.xlsx", 
+#'          pathForeignTrain = "InputForeignSet.xlsx", pathForeignTest = "InputForeignTestSet.xlsx")
+#' #GeneratingSets from random data
+#' GenerateSets(fromFile = FALSE, 
+#'          noClasses = 10, noFeatures = 15, noRepetitionsInClass = 25,
+#'          minRand = 0.5, maxRand = 50, distortion = 2.5,
+#'          percTestSize = -1, percForeignSize = -1)
 GenerateSets <- function(fromFile, pathTrain, pathTest, 
                         pathForeignTrain, pathForeignTest, 
                         noClasses = 0, noFeatures = 0, noRepetitionsInClass = 0,
@@ -67,6 +117,20 @@ GenerateSets <- function(fromFile, pathTrain, pathTest,
 }
 
 # Generating the learning set ================================
+#'Generates learning set from random data. 
+#'This function is a subroutine for \code{GenerateSets} function.
+#'
+#'Parameters are similiar to the ones in \code{GenerateSets} and all are obligatory.
+#' @param noClasses A paramter telling how many classes will be in generated set. 
+#' @param noFeatures A paramter telling how many features will have elements in learning set. 
+#' @param noRepetitionsInClass A paramter telling how many elements of each class will be in the set. 
+#' @param noWords A prameter telling how many words should be in the learning set.
+#' @param rangeMin A parameter setting minimal value of mean of feature of given class.
+#' @param rangeMax A parameter setting maximal value of mean of feature of given class.
+#' @param sigma A parateter setting standard deviation from mean of values of features in each class.
+#' @return An array with values of features (collumns) for given words (rows). 
+#' The first collumn holds an index of word in whole set and second is an expected class of given word,
+#' next collumns store values of features.
 Generate.LearningSet <- function(noClasses, noRepetitionsInClass, noFeatures, noLearnWords, rangeMin, rangeMax, sigma){
   learningSet = array(,dim = c(noLearnWords, noFeatures+2))
   for (c in 1:noClasses){
@@ -82,6 +146,13 @@ Generate.LearningSet <- function(noClasses, noRepetitionsInClass, noFeatures, no
   learningSet
 }
 
+#'Loads a file data into a matrix which can be used in learning sets.
+#'
+#' @param fileName Name of the file, which will be loaded.
+#' @param sheet Number of sheet which will be loaded. First one by default.
+#' @param startingIndex Number starting from which the words will be indexed.
+#' @return An matrix with index of word in first column, 
+#' expected class in second one and values of features in all next ones.
 LoadXlsxFile <- function(fileName, sheet = 1, startingIndex =1){
   if(!require(openxlsx))
     install.packages("openxlsx", dependencies = TRUE)
@@ -90,6 +161,11 @@ LoadXlsxFile <- function(fileName, sheet = 1, startingIndex =1){
   tab = cbind(WordIndex ,tab)
   as.matrix(tab, dimnames = NULL)
 }
+
+#'CHanges values of features from both sets to values from range <0,1>
+#'
+#' @param sets List containing $learn and $test set to be normalized.
+#' @return Same list as in input but with normalized values.
 Normalize <- function(sets){
   noColumns = dim(sets$learn)[2]
   for (i in ((1:noColumns)[c(-1,-2)])){
@@ -103,12 +179,27 @@ Normalize <- function(sets){
   sets
 }
 
+#'Discretization function changing specific values into numbers of symbols
+#'
+#' @param x Object that need to be changed into symbols
+#' @param symbols Number of symbols that will represent the values.
+#' @return x with numbers from 1:symbols coresponding to values from input.
 ChangeValuesToSymbols <- function(x,symbols){
   newVals = ceiling(x/(1/symbols))
   newVals[x == 0] = 1;
   newVals
 }
 # AUTOMATA FUNCTIONS -----
+#' Creates Transition Table for Automata
+#' 
+#' @param states Number of states in Automata. It should be equal to number of classes.
+#' @param symbols Number of symbols.
+#' @param nondeterminism Maximal number of transitions from one state using one symbol. 
+#' If nondeterminism is equal to Infinity it is assumed that automata is Fuzzy one and values
+#' in TT are real numbers from <0,1> otherwise they are equal to 0 or 1.
+#' By defualt nondeterminism = 1.
+#' @param rejection Boolean variable detemining of Automata can be in rejecting state.
+#' @return An array with values integer or real values from range <0,1>
 CreateTT <- function(states, symbols, nondeterminism = 1, rejection = TRUE){
   if(is.infinite(nondeterminism))
   {
@@ -133,6 +224,11 @@ CreateTT <- function(states, symbols, nondeterminism = 1, rejection = TRUE){
   TT
 }
 
+#' Calculates next state after reading symbol from word. Simulates transition function.
+#' @param TT The transition table.
+#' @param inputSymbol Symbol read from word.
+#' @param state State vector in which machine was when it was reading the symbol.
+#' @returns Vector of states with chances of being in each of the states.
 ComputeNextState <- function(TT,inputSymbol,state){
   newState = vector(mode="numeric", length = dim(TT)[1])
   for(i in 1:length(newState)){
@@ -141,6 +237,10 @@ ComputeNextState <- function(TT,inputSymbol,state){
   newState
 }
 
+#' Function used to determine a value of chance of single state.
+#' @param row Row from matrix which we use to calculate the norm.
+#' @param column Vector of symbols which we use to calculate the sum.
+#' @returns A triangular norm for given row and column
 UseTriangleNorm <- function(row, column){
   result = vector(mode="numeric",length = length(column))
   for(i in 1:length(column)){
@@ -149,6 +249,9 @@ UseTriangleNorm <- function(row, column){
   triMax(result)
 }
 
+#' Subroutine for calculating triangular norm.
+#' @param values Values for which we calculate maximum.
+#' @return A dingle value, maximum used in triangular norm.
 triMax <- function(values){
   #max(values)
   values = atanh(values);
@@ -158,6 +261,9 @@ triMax <- function(values){
   value
 }
 
+#' Subroutine for calculating triangular norm.
+#' @param values Values for which we calculate minimum.
+#' @return A dingle value, minimum used in triangular norm.
 triMin <- function(values){
   #min(values)
   values = atanh(1-values)
@@ -167,6 +273,10 @@ triMin <- function(values){
   value
 }
 
+#' Calculates symbols vector used in fuzzy automata
+#' @param value Value of feature to be represented as a vector of chances for given symbol.
+#' @param numberOfSymbols Number symbols, length of the result vector.
+#' @return A vector with chances for each of the symbols.
 CalculateSymbolsVector <- function(value,numberOfSymbols){
   value = as.numeric(value)
   result = vector(mode = "numeric", numberOfSymbols)
@@ -179,6 +289,11 @@ CalculateSymbolsVector <- function(value,numberOfSymbols){
   round(result,4)
 }
 # CLASSIFYING WORDS -----
+#' Classifies given word. Simulates computation of Turing Machine for given word.
+#' @param TT The transition table.
+#' @param word The word to be classified.
+#' @param discrete Bolean value telling, if Automata is discrete (TRUE) or fuzzy (FALSE).
+#' @return A vector of chances for Turing Machine finishing in given state.
 ClassifyWord <- function(TT,word, discrete){  
   states = dim(TT)[1]
   symbols = dim(TT)[3]
@@ -210,6 +325,11 @@ ClassifyWord <- function(TT,word, discrete){
   state
 }
 
+#' Calculates the error for given set of words
+#' @param TT The transition table.
+#' @param words The set of automata words.
+#' @param minChance The minimal value of chance to treat it as an accepted.
+#' @return The value of error.
 CalculateError <- function(TT,words,minChance,discrete){
   error = 0;
   wordsNo = dim(words)[1]
@@ -233,11 +353,30 @@ CalculateError <- function(TT,words,minChance,discrete){
   error
 }
 
+#' @describeIn CalculateError Does the same calculations as CalculateError.
+#' The only difference is that transition table is passed as a vector and must be returned 
+#' into 3D array form before performing proper calculations.
+#' Only parameters different from CalculateError will be described
+#' @param vTT The transition table in a vector form.
+#' @param states The number of states in automata.
+#' @param symbols The number of symbols in automata.
+#' @param boundNonDeterminism The maximal number of destination states in one transition.
+#' Infnite vale is treated as a Fuzzy automata.
+#' @return The value of error.
 CalculateErrorFromVector <- function(vTT,words,states,symbols,minChance,rejecting,boundNonDeterminism, discrete){
   TT = HandlePSOVector(vTT,states,symbols,rejecting,boundNonDeterminism)
   CalculateError(TT,words,minChance,discrete)
 }
 
+#' @describeIn CalculateErrorFromVector Transforms vectorized transition table from PSO 
+#' into a 3D array form with proper values.
+#' @param vTT The transition table in a vector form.
+#' @param states The number of states in automata.
+#' @param symbols The number of symbols in automata.
+#' @param boundNonDeterminism The maximal number of destination states in one transition.
+#' Infnite vale is treated as a Fuzzy automata.
+#' @param rejecting Boolean variable detemining of Automata can be in rejecting state.
+#' @return The 3D array representing transition table.
 HandlePSOVector <- function(vTT,states,symbols,rejecting,boundNonDeterminism){
   TT = array(vTT,dim = c(states,states,symbols))
   if(is.infinite(boundNonDeterminism) == FALSE)
@@ -246,6 +385,11 @@ HandlePSOVector <- function(vTT,states,symbols,rejecting,boundNonDeterminism){
     TT
 }
 
+#' @describeIn HandlePSOVector Changes PSO values of transition table into zeros or ones.
+#' @param TT The transition table.
+#' @param nonDeterminism The maximal number of destination states in one transition.
+#' @param rejecting Boolean variable detemining of Automata can be in rejecting state.
+#' @return The 3D array representing transition table.
 ChangeValuesToZerosAndOnes <- function(TT,rejecting, nondeterminism){
   states = dim(TT)[1]
   symbols = dim(TT)[3]
@@ -265,53 +409,18 @@ ChangeValuesToZerosAndOnes <- function(TT,rejecting, nondeterminism){
   TT
 }
 
-# Old functions -----
-CreateAutomata <- function(sets, classes, features, numberOfSymbols,
-                           learningInstancesPerClass, testingInstancesPerClass,
-                           rangeMin, rangeMax, minChance, iterations){
-  
-  #cat("",file="outfile.txt",append=FALSE);
-  
-  sets = Normalize(sets)
-  #sets$learn = ChangeValuesToSymbols(sets$learn, numberOfSymbols)
-  #sets$test = ChangeValuesToSymbols(sets$test, numberOfSymbols)
-  
-  TT = CreateTT(classes, numberOfSymbols);
-
-# HYDRO PSO VERSION  
-  library("hydroPSO", lib.loc="~/R/win-library/3.1");
-  results = hydroPSO(par = matrix(TT,nrow=1),fn = CalculateErrorFromVector,
-                     words = sets$learn, instances = learningInstancesPerClass, 
-                     states = classes, symbols = numberOfSymbols, minChance = minChance,
-                     lower = rep(0,length(TT)), upper = rep(1,length(TT)),  
-                     control = list(parallel = 'parallelWin', par.nnodes = 8, REPORT = 10, maxit=iterations))
-
-# PPSO VERSION  
-#   results = optim_ppso_robust(parameter_bounds = matrix(c(0,1),c(1,2)),max_number_of_iterations = 5,
-#                               number_of_parameters = length(TT),objective_function = CalculateErrorFromVector,
-#                               projectfile = "ParallelProgress.txt", save_interval = 50, plot_progress = TRUE
-#                               )
-
-# STANDARD PSO VERSION
-#   results = psoptim(c(TT),fn = CalculateErrorFromVector,
-#                     words = sets$learn, instances = learningInstancesPerClass, 
-#                     states = classes, symbols = numberOfSymbols, nondeterminism = nondeterminism,
-#                     lower = 1, upper = classes,
-#                     control = list(trace = 1, REPORT = 10, trace.stats =TRUE));
-#   TT = HandlePSOVector(results$par,classes,numberOfSymbols);
-#   cat("Smallest Error", results$value,"\n");
-#   effi = CalculateError(TT, sets$test, testingInstancesPerClass,minChance);
-#   cat("Efficiency:",1-(effi/dim(sets$test)[1]),"\n");
-  results
-}
 
 # TESTS -----
+#' Function counting computation time of any fuction
+#' @param fn An expression to be evaluated.
+#' @return A list consisting of $time of computation and $fnResults.
 TimeTest <- function(fn){
   ptm = proc.time()
   v = fn
   time =  proc.time() - ptm
   list("time" = time, "fnResults" = v)
 }
+#' Tests if all phases finish if sets are generated.
 TestAllPhases.Generated <- function(quiet = FALSE){
   if(quiet)
     trace = 0
@@ -325,6 +434,7 @@ TestAllPhases.Generated <- function(quiet = FALSE){
            parallel = "NO", PSOtrace = trace, PSOmaxit = 10)
   }
 }
+#' Tests if all phases finish if function AC2014 must determine if it should generate or take file data.
 TestAllPhases.Autodetected <- function(quiet = FALSE){
   if(quiet)
     trace = 0
@@ -338,7 +448,7 @@ TestAllPhases.Autodetected <- function(quiet = FALSE){
            parallel = "NO", PSOtrace = trace, PSOmaxit = 10)
   }
 }
-
+#' Tests if all phases finish if sets are given in files.
 TestAllPhases.File <- function(quiet = FALSE){
   if(quiet)
     trace = 0
@@ -352,6 +462,7 @@ TestAllPhases.File <- function(quiet = FALSE){
            discretization = 5, parallel = "NO", PSOtrace = trace, PSOmaxit = 10)
   }
 }
+#' Runs all tests fro all phases.
 TestAllPhases.All <- function(quiet = TRUE){
   cat("AutoDetection tests:")
   TestAllPhases.Autodetected(quiet)
@@ -361,6 +472,11 @@ TestAllPhases.All <- function(quiet = TRUE){
   TestAllPhases.File(quiet)  
 }
 # Project running function -----
+#' Main function of project. 
+#' @returns A list with:
+#' $optimalization data holding $time of optimalization using learning set.
+#' $efficiency, number of properly clssified words, tested on testing set.
+#' $TT transition table generated by PSO algorithm.
 AC2014 <- function(phase, inputType = "", 
                    pathTrain, pathTest, 
                    pathForeignTrain, pathForeignTest, 
@@ -580,11 +696,13 @@ AC2014 <- function(phase, inputType = "",
     GenerateReport(pathOutputClass,classes)
   }
 
-  
-
   list("optimalization" = LearnResults, "efficiency" = efficiency, "TT" = TT)
 }
 # Generating Reports -----
+#'Saves a file of classification.
+#'@param fileName Path to result file.
+#'@param set A matrix with two columns: first index of word, second with class of word.
+#'@param sheetName Name of sheet in file.  By default "Classification"
 GenerateReport <- function(fileName, set, sheetName = "Classification"){
   require(openxlsx)
   wb = createWorkbook(creator = "Jan Grzybowski");
@@ -594,6 +712,13 @@ GenerateReport <- function(fileName, set, sheetName = "Classification"){
   writeData(wb, sheetName, classification, colNames = FALSE, rowNames = FALSE)
   saveWorkbook(wb,fileName,overwrite = TRUE)
 }
+#' Prepares a set to be saved in output classification file.
+#' @param set A set of words to be classified.
+#' @param TT The transition table.
+#' @param minChance The minimal value of chance to treat it as an accepted.
+#' @param discrete Bolean value telling, if Automata is discrete (TRUE) or fuzzy (FALSE).
+#' @param shift Values telling how to shift classes numbers in case when data file had calss with number 0.
+#' @return A set ready to be used in GenerateReport function.
 PrepareCalssification <- function(set, TT, minChance, discrete, shift){
   words = set
   wordsNo = dim(words)[1]
@@ -620,6 +745,13 @@ PrepareCalssification <- function(set, TT, minChance, discrete, shift){
   classification[,2] = classification[,2]+shift
   classification
 }
+
+#' Calculates the percentage of properly classified words.
+#' @param TT The transition table.
+#' @param words The set of words that will serve as a testing set.
+#' @param minChance The minimal value of chance to treat it as an accepted.
+#' @param discrete Bolean value telling, if Automata is discrete (TRUE) or fuzzy (FALSE).
+#' @return The percentage of properly classified words.
 CalculateEfficiency <- function(TT,words,minChance,discrete){
   hits = 0
   wordsNo = dim(words)[1]
@@ -640,6 +772,7 @@ CalculateEfficiency <- function(TT,words,minChance,discrete){
   }
   hits/wordsNo
 }
+
 # Phases -----
 Phases <- c("a1","a2","a3","a4","a5","a6")
 NonRejectingPhases <- c("a1","a3","a5")
