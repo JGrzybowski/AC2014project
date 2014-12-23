@@ -81,11 +81,11 @@ Report.parallelism <- function(values){
   for(i in 1:length(values)){
     parallelism = values[i]
     noTry = match(i, 1:length(values))
-    results = AC2014("a6", inputType = "gen", noClasses = 10, noFeatures = 5, 
-                     discretization = 5, noRepetitionsInClass = 15, 
+    results = AC2014("a6", inputType = "gen", noClasses = 5, noFeatures = 5, 
+                     discretization = 3, noRepetitionsInClass = 50, 
                      minRand = 0, maxRand = 25, distortion = 1, 
                      percForeignSize = 15, percTestSize = 20, 
-                     parallel = "NO", PSOmaxit = 100)
+                     parallel = parallelism, PSOmaxit = 500)
     
     results = list("value" = parallelism, "time" = as.vector(results$optimalization$time), "error" = results$optimalization$PSOresults$value, "efficiency" = results$efficiency)
     writeData(wb,sheet = Sheets.parallelism$name,results,1,noTry,
@@ -178,7 +178,7 @@ Sheets.noInstances <- list("name" = "noInstances", page = 1)
 Sheets.noClasses <- list("name" = "noClasses", page = 2)
 Sheets.discretization <- list("name" = "discretization", page = 3)
 Sheets.maxit <- list("name" = "maxit", page = 4)
-Sheets.paralellism <- list("name" = "parallelism", page = 5)
+Sheets.parallelism <- list("name" = "parallelism", page = 5)
 Sheets.basicPSOparams <- list("name" = "basicPSOparams", page = 6)
 Sheets.ForeignElements <- list("name" = "ForeignElements", page = 7)
 Sheets.nonDeterminism <- list("name" = "nonDeterminism", page = 8)
